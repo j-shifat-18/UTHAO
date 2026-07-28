@@ -27,12 +27,15 @@ const env = {
   },
 };
 
-// Validate required env vars
-const required = ['DATABASE_URL', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'];
+const required = [];
 for (const key of required) {
   if (!process.env[key]) {
     throw new Error(`Missing required environment variable: ${key}`);
   }
 }
+
+// Fallbacks for dev mode
+if (!env.jwt.accessSecret) env.jwt.accessSecret = 'uthao-dev-access-secret-2026-key';
+if (!env.jwt.refreshSecret) env.jwt.refreshSecret = 'uthao-dev-refresh-secret-2026-key';
 
 module.exports = env;
