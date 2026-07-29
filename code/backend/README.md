@@ -209,3 +209,123 @@ Authorization: Bearer <access_token>
   ]
 }
 ```
+
+
+---
+
+### Users Module (Admin/Manager only)
+
+#### GET /api/v1/users
+
+List all users with pagination, search, and filtering.
+
+**Query Params:** `?page=1&limit=10&search=john&role=customer&is_active=true`
+
+**Headers:** `Authorization: Bearer <admin_token>`
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Users fetched",
+  "data": [ { "id": "uuid", "email": "...", "role": "customer", "is_active": true } ],
+  "meta": { "page": 1, "limit": 10, "totalCount": 45, "totalPages": 5, "hasNextPage": true, "hasPrevPage": false }
+}
+```
+
+---
+
+#### GET /api/v1/users/:id
+
+Get single user details.
+
+---
+
+#### PATCH /api/v1/users/:id
+
+Update user (email, phone, is_active, role_id).
+
+**Request Body:**
+```json
+{ "email": "new@email.com", "role_id": 2 }
+```
+
+---
+
+#### PATCH /api/v1/users/:id/deactivate
+
+Soft-delete (deactivate) a user.
+
+---
+
+#### PATCH /api/v1/users/:id/activate
+
+Reactivate a deactivated user.
+
+---
+
+### Customers Module
+
+#### GET /api/v1/customers/me
+
+Get own customer profile. Requires auth.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": { "id": "uuid", "first_name": "Rahim", "last_name": "Ahmed", "email": "...", "phone": "..." }
+}
+```
+
+---
+
+#### GET /api/v1/customers
+
+List all customers (admin/manager only). Supports `?search=rahim&page=1&limit=10`.
+
+---
+
+#### GET /api/v1/customers/:id
+
+Get customer by ID.
+
+---
+
+#### PATCH /api/v1/customers/:id
+
+Update customer profile.
+
+**Request Body:**
+```json
+{ "first_name": "Rahim", "last_name": "Khan", "date_of_birth": "1995-06-15", "gender": "male" }
+```
+
+---
+
+#### GET /api/v1/customers/:id/addresses
+
+Get all addresses for a customer.
+
+---
+
+#### POST /api/v1/customers/:id/addresses
+
+Add a new address for a customer.
+
+**Request Body:**
+```json
+{
+  "label": "home",
+  "address_line1": "123 Main St",
+  "city": "Dhaka",
+  "state": "Dhaka",
+  "postal_code": "1205",
+  "is_default": true
+}
+```
+
+**Response (201):**
+```json
+{ "success": true, "message": "Address added", "data": { "id": 1, "label": "home", "..." } }
+```
