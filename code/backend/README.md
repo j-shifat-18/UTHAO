@@ -329,3 +329,81 @@ Add a new address for a customer.
 ```json
 { "success": true, "message": "Address added", "data": { "id": 1, "label": "home", "..." } }
 ```
+
+
+---
+
+### Branches Module
+
+#### GET /api/v1/branches
+
+List branches. `?search=dhaka&city=Dhaka&is_active=true&page=1&limit=10`
+
+#### GET /api/v1/branches/:id
+
+Get branch by ID.
+
+#### GET /api/v1/branches/:id/stats
+
+Get branch statistics (employee count, agent count, warehouse count, active parcels).
+
+#### POST /api/v1/branches (admin/manager)
+
+```json
+{ "name": "Dhaka Central", "code": "DHK-01", "city": "Dhaka", "state": "Dhaka", "address": "123 Motijheel" }
+```
+
+#### PATCH /api/v1/branches/:id (admin/manager)
+
+Update branch fields.
+
+#### DELETE /api/v1/branches/:id (admin)
+
+Deactivate branch.
+
+---
+
+### Warehouses Module
+
+#### GET /api/v1/warehouses
+
+List warehouses. `?search=central&city=Dhaka&branch_id=1&is_active=true&page=1&limit=10`
+
+#### GET /api/v1/warehouses/:id
+
+Get warehouse by ID.
+
+#### GET /api/v1/warehouses/:id/occupancy
+
+Get capacity info.
+
+**Response:**
+```json
+{ "total_capacity": 500, "current_occupancy": 342, "available_space": 158, "occupancy_percentage": "68.40" }
+```
+
+#### POST /api/v1/warehouses (admin/manager)
+
+```json
+{ "name": "Central Warehouse", "code": "WH-DHK-01", "branch_id": 1, "city": "Dhaka", "address": "Tejgaon", "total_capacity": 500 }
+```
+
+#### PATCH /api/v1/warehouses/:id (admin/manager)
+
+Update warehouse fields.
+
+#### DELETE /api/v1/warehouses/:id (admin)
+
+Deactivate warehouse.
+
+#### POST /api/v1/warehouses/transfers (admin/manager/employee)
+
+Initiate a parcel transfer between warehouses.
+
+```json
+{ "parcel_id": "uuid", "from_warehouse_id": 1, "to_warehouse_id": 2 }
+```
+
+#### PATCH /api/v1/warehouses/transfers/:transferId/complete (admin/manager/employee)
+
+Complete a pending transfer. Updates occupancy and parcel location atomically.
