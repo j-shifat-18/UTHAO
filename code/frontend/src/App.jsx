@@ -9,6 +9,7 @@ import Addresses from './pages/customer/Addresses.jsx'
 import Users from './pages/admin/Users.jsx'
 import Customers from './pages/admin/Customers.jsx'
 import NotFound from './pages/NotFound.jsx'
+import LandingPage from './pages/LandingPage.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 
 export default function App() {
@@ -16,17 +17,19 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
+      
       <Route
         path="/login"
-        element={!booting && user ? <Navigate to="/" replace /> : <Login />}
+        element={!booting && user ? <Navigate to="/dashboard" replace /> : <Login />}
       />
       <Route
         path="/register"
-        element={!booting && user ? <Navigate to="/" replace /> : <Register />}
+        element={!booting && user ? <Navigate to="/dashboard" replace /> : <Register />}
       />
 
       <Route
-        path="/"
+        path="/dashboard"
         element={
           <ProtectedRoute>
             <Layout />
