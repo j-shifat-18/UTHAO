@@ -33,11 +33,13 @@ export default function Addresses() {
         if (!active) return
         const customer = me.data?.data || me.data
         const cid = customer?.id
-        setCustomerId(cid)
-        if (cid) {
+        if (cid && cid !== 'undefined') {
+          setCustomerId(cid)
           const list = await api.get(`/customers/${cid}/addresses`)
           if (!active) return
           setAddresses(list.data?.data || list.data || [])
+        } else {
+          setError('Could not resolve customer account.')
         }
       } catch (err) {
         setError(err.message)
@@ -58,8 +60,8 @@ export default function Addresses() {
 
   async function onSubmit(e) {
     e.preventDefault()
-    if (!customerId) {
-      setError('Customer profile missing.')
+    if (!customerId || customerId === 'undefined') {
+      setError('Customer profile missing. Please refresh the page.')
       return
     }
     setSaving(true)
@@ -67,7 +69,7 @@ export default function Addresses() {
     try {
       const res = await api.post(`/customers/${customerId}/addresses`, form)
       const newAddr = res.data?.data || res.data
-      setAddresses((list) => [...list, newAddr])
+      setAddresses((list) => [newAddr, ...list])
       setForm(emptyForm)
       setShowForm(false)
     } catch (err) {
@@ -99,7 +101,7 @@ export default function Addresses() {
       />
 
       {error && (
-        <div className="bg-red-50 text-red-600 border border-red-200 px-4 py-2.5 rounded-xl text-sm">
+        <div className="bg-red-50 text-red-600 border border-red-200 px-4 py-2.5 rounded-xl text-sm font-medium">
           {error}
         </div>
       )}
@@ -174,7 +176,7 @@ export default function Addresses() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {addresses.map((a, i) => (
             <motion.div
-              key={a.id}
+              key={a.id || i}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: i * 0.06 }}

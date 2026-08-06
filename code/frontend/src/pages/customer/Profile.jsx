@@ -19,15 +19,19 @@ export default function Profile() {
     api.get('/customers/me')
       .then((res) => {
         if (!active) return
-        // Extract customer object from backend payload { success: true, message: '...', data: customer }
+        // Backend payload: { success: true, message: '...', data: customer }
         const data = res.data?.data || res.data
-        setProfile(data)
-        setForm({
-          first_name: data.first_name || '',
-          last_name: data.last_name || '',
-          date_of_birth: data.date_of_birth ? String(data.date_of_birth).split('T')[0] : '',
-          gender: data.gender || '',
-        })
+        if (data && data.id) {
+          setProfile(data)
+          setForm({
+            first_name: data.first_name || '',
+            last_name: data.last_name || '',
+            date_of_birth: data.date_of_birth ? String(data.date_of_birth).split('T')[0] : '',
+            gender: data.gender || '',
+          })
+        } else {
+          setError('Could not resolve customer profile.')
+        }
       })
       .catch((err) => setError(err.message))
       .finally(() => active && setLoading(false))
@@ -40,7 +44,7 @@ export default function Profile() {
 
   async function onSubmit(e) {
     e.preventDefault()
-    if (!profile?.id) {
+    if (!profile?.id || profile.id === 'undefined') {
       setError('Customer ID not found. Please refresh the page.')
       return
     }
@@ -48,9 +52,16 @@ export default function Profile() {
     setError('')
     setSuccess('')
     try {
-      const res = await api.patch(`/customers/${profile.id}`, form)
+      const payload = {
+        first_name: form.first_name,
+        last_name: form.last_name,
+        date_of_birth: form.date_of_birth || null,
+        gender: form.gender || null,
+      }
+      const res = await api.patch(`/customers/${profile.id}`, payload)
       const updated = res.data?.data || res.data
-      setProfile(updated)
+      // Merge updated profile data into existing state so email & phone are retained
+      setProfile((prev) => ({ ...prev, ...updated }))
       setSuccess('Profile updated successfully.')
     } catch (err) {
       setError(err.message || 'Could not save your changes.')
@@ -69,7 +80,8 @@ export default function Profile() {
       {profile && (
         <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
           <TrackingTag id={profile.id} label="CUS" />
-          <span className="text-sm text-gray-500">{profile.email}</span>
+          <span className="text-sm text-gray-500 font-medium">{profile.email}</span>
+          {profile.phone && <span className="text-xs text-gray-400">({profile.phone})</span>}
         </div>
       )}
 
@@ -80,7 +92,7 @@ export default function Profile() {
         className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm max-w-lg"
       >
         {error && (
-          <div className="bg-red-50 text-red-600 border border-red-200 px-4 py-2.5 rounded-xl mb-5 text-sm">
+          <div className="bg-red-50 text-red-600 border border-red-200 px-4 py-2.5 rounded-xl mb-5 text-sm font-medium">
             {error}
           </div>
         )}
