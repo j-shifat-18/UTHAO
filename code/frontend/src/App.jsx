@@ -8,6 +8,8 @@ import Profile from './pages/customer/Profile.jsx'
 import Addresses from './pages/customer/Addresses.jsx'
 import Users from './pages/admin/Users.jsx'
 import Customers from './pages/admin/Customers.jsx'
+import Branches from './pages/admin/Branches.jsx'
+import Warehouses from './pages/admin/Warehouses.jsx'
 import NotFound from './pages/NotFound.jsx'
 import LandingPage from './pages/LandingPage.jsx'
 import { useAuth } from './context/AuthContext.jsx'
@@ -52,6 +54,22 @@ export default function App() {
           element={
             <ProtectedRoute adminOnly>
               <Customers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/branches"
+          element={
+            <ProtectedRoute adminOnly>
+              <Branches />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/warehouses"
+          element={
+            <ProtectedRoute adminOnly>
+              <Warehouses />
             </ProtectedRoute>
           }
         />
