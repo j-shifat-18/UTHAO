@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
-import { Package, LayoutDashboard, User, MapPin, Users, UsersRound, LogOut } from 'lucide-react'
+import { Package, LayoutDashboard, User, MapPin, Users, UsersRound, Building2, Warehouse, LogOut } from 'lucide-react'
 
 const NavItem = ({ to, end, icon: Icon, children }) => (
   <NavLink
@@ -70,6 +70,8 @@ export default function Sidebar() {
           <div className="flex flex-col gap-1">
             <NavItem to="/dashboard/admin/users" icon={Users}>Users</NavItem>
             <NavItem to="/dashboard/admin/customers" icon={UsersRound}>Customers</NavItem>
+            <NavItem to="/dashboard/admin/branches" icon={Building2}>Branches</NavItem>
+            <NavItem to="/dashboard/admin/warehouses" icon={Warehouse}>Warehouses</NavItem>
           </div>
         </nav>
       )}
