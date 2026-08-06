@@ -56,7 +56,7 @@
   line-height: 1.6;
 }
 
-.btn {
+.landing-page .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -71,25 +71,25 @@
   gap: 8px;
 }
 
-.btn-primary {
+.landing-page .btn-primary {
   background-color: var(--primary);
   color: var(--white);
   box-shadow: var(--shadow-md);
 }
 
-.btn-primary:hover {
+.landing-page .btn-primary:hover {
   background-color: var(--primary-hover);
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
 
-.btn-outline {
+.landing-page .btn-outline {
   background-color: transparent;
   color: var(--secondary);
   border: 2px solid var(--border-light);
 }
 
-.btn-outline:hover {
+.landing-page .btn-outline:hover {
   border-color: var(--secondary);
   background-color: var(--secondary);
   color: var(--white);
@@ -153,16 +153,19 @@
   align-items: center;
 }
 
-.nav-link {
+.navbar .nav-link {
   color: var(--text-main);
   text-decoration: none;
   font-weight: 500;
   font-size: 0.95rem;
   transition: var(--transition);
+  padding: 0;
+  background: transparent;
 }
 
-.nav-link:hover {
+.navbar .nav-link:hover {
   color: var(--primary);
+  background: transparent;
 }
 
 /* Hero Section */

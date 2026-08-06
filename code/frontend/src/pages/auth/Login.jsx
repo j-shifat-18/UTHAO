@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useAuth } from '../../context/AuthContext.jsx'
 
 export default function Login() {
@@ -20,7 +21,7 @@ export default function Login() {
     setLoading(true)
     try {
       await login(form.email, form.password)
-      const dest = location.state?.from || '/'
+      const dest = location.state?.from || '/dashboard'
       navigate(dest, { replace: true })
     } catch (err) {
       setError(err.message || 'Could not sign in. Check your details and try again.')
@@ -30,39 +31,67 @@ export default function Login() {
   }
 
   return (
-    <div className="landing-page" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-      <div style={{ background: '#111827', padding: '64px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', color: '#fff', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ fontSize: '2rem', fontWeight: '800', color: '#E53935', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <img src="/delivery-guy.png" alt="UTHAO" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 font-sans">
+      {/* Left panel */}
+      <motion.div
+        initial={{ opacity: 0, x: -40 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+        className="hidden lg:flex flex-col justify-between p-16 bg-gray-100 relative overflow-hidden"
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-2 text-2xl font-extrabold text-red-600">
+          <img src="/delivery-guy.png" alt="UTHAO" className="w-10 h-10 object-contain" />
           UTHAO
         </div>
-        
-        <div style={{ zIndex: 10 }}>
-          <h2 style={{ fontSize: '3.5rem', fontWeight: '800', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
-            Welcome back. <br/><span style={{ color: '#E53935' }}>Ready to ship?</span>
+
+        {/* Headline */}
+        <div className="relative z-10">
+          <h2 className="text-5xl font-extrabold leading-tight tracking-tight text-gray-900 mb-6">
+            Welcome back. <br />
+            <span className="text-red-600">Ready to ship?</span>
           </h2>
-          <p style={{ color: '#9CA3AF', fontSize: '1.25rem', maxWidth: '400px', lineHeight: 1.6 }}>
+          <p className="text-gray-500 text-lg max-w-sm leading-relaxed">
             Access your dashboard to track parcels, manage shipments, and scale your logistics.
           </p>
         </div>
 
-        <div style={{ color: '#6B7280', fontSize: '0.875rem', fontWeight: '500', zIndex: 10 }}>
-          SECURE SESSION &middot; UTHAO LOGISTICS PLATFORM
+        {/* Footer text */}
+        <div className="text-gray-400 text-sm font-medium z-10">
+          SECURE SESSION · UTHAO LOGISTICS PLATFORM
         </div>
 
-        <img src="/delivery-guy.png" alt="Background" style={{ position: 'absolute', right: '-10%', bottom: '5%', opacity: 0.15, width: '600px', pointerEvents: 'none' }} />
-      </div>
+        {/* Background watermark */}
+        <img
+          src="/delivery-guy.png"
+          alt=""
+          aria-hidden="true"
+          className="absolute right-[-10%] bottom-[5%] opacity-10 w-[600px] pointer-events-none select-none"
+        />
+      </motion.div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px', backgroundColor: '#FAFAFA' }}>
-        <div style={{ width: '100%', maxWidth: '440px', background: '#fff', padding: '48px', borderRadius: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', border: '1px solid #E5E7EB' }}>
-          <h1 style={{ fontSize: '2rem', fontWeight: '800', color: '#111827', marginBottom: '8px' }}>Sign in</h1>
-          <p style={{ color: '#6B7280', marginBottom: '32px' }}>Enter your details to access your dashboard.</p>
+      {/* Right panel */}
+      <div className="flex items-center justify-center p-8 bg-gray-50">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-gray-100 p-12"
+        >
+          <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Sign in</h1>
+          <p className="text-gray-500 mb-8">Enter your details to access your dashboard.</p>
 
-          {error && <div style={{ background: '#FEE2E2', color: '#DC2626', padding: '12px 16px', borderRadius: '8px', marginBottom: '24px', fontSize: '0.95rem' }}>{error}</div>}
+          {error && (
+            <div className="bg-red-50 text-red-600 border border-red-200 px-4 py-3 rounded-xl mb-6 text-sm">
+              {error}
+            </div>
+          )}
 
-          <form onSubmit={onSubmit}>
-            <div style={{ marginBottom: '20px' }}>
-              <label htmlFor="email" style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '8px', fontSize: '0.95rem' }}>Email</label>
+          <form onSubmit={onSubmit} className="space-y-5">
+            <div>
+              <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                Email
+              </label>
               <input
                 id="email"
                 type="email"
@@ -71,13 +100,14 @@ export default function Login() {
                 value={form.email}
                 onChange={update('email')}
                 placeholder="you@example.com"
-                style={{ width: '100%', padding: '14px 16px', border: '1px solid #E5E7EB', borderRadius: '12px', fontSize: '1rem', boxSizing: 'border-box', outline: 'none', transition: 'all 0.2s' }}
-                onFocus={(e) => { e.target.style.borderColor = '#E53935'; e.target.style.boxShadow = '0 0 0 3px rgba(229,57,53,0.1)' }}
-                onBlur={(e) => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none' }}
+                className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-base focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all"
               />
             </div>
-            <div style={{ marginBottom: '32px' }}>
-              <label htmlFor="password" style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '8px', fontSize: '0.95rem' }}>Password</label>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
+                Password
+              </label>
               <input
                 id="password"
                 type="password"
@@ -86,26 +116,28 @@ export default function Login() {
                 value={form.password}
                 onChange={update('password')}
                 placeholder="••••••••"
-                style={{ width: '100%', padding: '14px 16px', border: '1px solid #E5E7EB', borderRadius: '12px', fontSize: '1rem', boxSizing: 'border-box', outline: 'none', transition: 'all 0.2s' }}
-                onFocus={(e) => { e.target.style.borderColor = '#E53935'; e.target.style.boxShadow = '0 0 0 3px rgba(229,57,53,0.1)' }}
-                onBlur={(e) => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none' }}
+                className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-base focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all"
               />
             </div>
-            <button 
-              type="submit" 
+
+            <motion.button
+              type="submit"
               disabled={loading}
-              style={{ width: '100%', padding: '16px', backgroundColor: '#E53935', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '1.125rem', fontWeight: '600', cursor: 'pointer', transition: 'background-color 0.2s', boxShadow: '0 4px 6px -1px rgba(229, 57, 53, 0.2)' }}
-              onMouseOver={(e) => e.target.style.backgroundColor = '#D32F2F'}
-              onMouseOut={(e) => e.target.style.backgroundColor = '#E53935'}
+              whileHover={{ scale: loading ? 1 : 1.02 }}
+              whileTap={{ scale: loading ? 1 : 0.98 }}
+              className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-semibold text-lg rounded-xl shadow-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? 'Signing in…' : 'Sign in'}
-            </button>
+            </motion.button>
           </form>
 
-          <div style={{ marginTop: '32px', textAlign: 'center', color: '#6B7280', fontSize: '0.95rem' }}>
-            New to UTHAO? <Link to="/register" style={{ color: '#E53935', fontWeight: '600', textDecoration: 'none' }}>Create an account</Link>
-          </div>
-        </div>
+          <p className="mt-8 text-center text-gray-500 text-sm">
+            New to UTHAO?{' '}
+            <Link to="/register" className="text-red-600 font-semibold hover:underline">
+              Create an account
+            </Link>
+          </p>
+        </motion.div>
       </div>
     </div>
   )

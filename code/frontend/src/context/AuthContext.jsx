@@ -15,6 +15,7 @@ export function AuthProvider({ children }) {
       return
     }
     try {
+      // Axios wraps the response body in `.data`
       const res = await api.get('/auth/profile')
       setUser(res.data)
     } catch {
@@ -30,8 +31,10 @@ export function AuthProvider({ children }) {
   }, [loadProfile])
 
   async function login(email, password) {
+    // Pass { auth: false } so the interceptor skips the Bearer header
     const res = await api.post('/auth/login', { email, password }, { auth: false })
-    const { access_token, refresh_token, user: u } = res.data
+    const body = res.data
+    const { access_token, refresh_token, user: u } = body
     setTokens(access_token, refresh_token)
     setUser(u)
     return u
@@ -39,7 +42,8 @@ export function AuthProvider({ children }) {
 
   async function register(payload) {
     const res = await api.post('/auth/register', payload, { auth: false })
-    const { access_token, refresh_token, user: u } = res.data
+    const body = res.data
+    const { access_token, refresh_token, user: u } = body
     setTokens(access_token, refresh_token)
     setUser(u)
     return u
@@ -47,7 +51,7 @@ export function AuthProvider({ children }) {
 
   async function logout() {
     try {
-      await api.post('/auth/logout', undefined)
+      await api.post('/auth/logout')
     } catch {
       // ignore network errors on logout, clear locally regardless
     }
