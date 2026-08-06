@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
-import { Package, LayoutDashboard, User, MapPin, Users, UsersRound, Building2, Warehouse, LogOut } from 'lucide-react'
+import { Package, LayoutDashboard, User, MapPin, Users, UsersRound, Building2, Warehouse, PlusCircle, PackageCheck, Boxes, LogOut } from 'lucide-react'
 
 const NavItem = ({ to, end, icon: Icon, children }) => (
   <NavLink
@@ -54,6 +54,15 @@ export default function Sidebar() {
         <NavItem to="/dashboard" end icon={LayoutDashboard}>Dashboard</NavItem>
       </nav>
 
+      {/* Shipments */}
+      <nav className="mb-6">
+        <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Shipments</p>
+        <div className="flex flex-col gap-1">
+          <NavItem to="/dashboard/book-parcel" icon={PlusCircle}>Book Parcel</NavItem>
+          <NavItem to="/dashboard/my-parcels" icon={PackageCheck}>My Parcels</NavItem>
+        </div>
+      </nav>
+
       {/* Account */}
       <nav className="mb-6">
         <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Your account</p>
@@ -68,6 +77,7 @@ export default function Sidebar() {
         <nav className="mb-6">
           <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Administration</p>
           <div className="flex flex-col gap-1">
+            <NavItem to="/dashboard/admin/parcels" icon={Boxes}>All Parcels</NavItem>
             <NavItem to="/dashboard/admin/users" icon={Users}>Users</NavItem>
             <NavItem to="/dashboard/admin/customers" icon={UsersRound}>Customers</NavItem>
             <NavItem to="/dashboard/admin/branches" icon={Building2}>Branches</NavItem>
