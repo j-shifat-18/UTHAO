@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
 
 export default function Login() {
@@ -8,8 +9,11 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const [form, setForm] = useState({ email: '', password: '' })
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const successMsg = location.state?.message
 
   function update(field) {
     return (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
@@ -81,6 +85,12 @@ export default function Login() {
           <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Sign in</h1>
           <p className="text-gray-500 mb-8">Enter your details to access your dashboard.</p>
 
+          {successMsg && (
+            <div className="bg-green-50 text-green-700 border border-green-200 px-4 py-3 rounded-xl mb-6 text-sm font-medium flex items-center gap-2">
+              <span>✓</span> {successMsg}
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-50 text-red-600 border border-red-200 px-4 py-3 rounded-xl mb-6 text-sm">
               {error}
@@ -108,16 +118,27 @@ export default function Login() {
               <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                value={form.password}
-                onChange={update('password')}
-                placeholder="••••••••"
-                className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-base focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all"
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  value={form.password}
+                  onChange={update('password')}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3.5 pr-12 border border-gray-200 rounded-xl text-base focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors p-1"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
 
             <motion.button

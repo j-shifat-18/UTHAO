@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { Eye, EyeOff, CheckCircle } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
 
 const initial = { first_name: '', last_name: '', email: '', phone: '', password: '' }
@@ -9,7 +10,9 @@ export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState(initial)
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
 
@@ -20,11 +23,15 @@ export default function Register() {
   async function onSubmit(e) {
     e.preventDefault()
     setError('')
+    setSuccess('')
     setFieldErrors({})
     setLoading(true)
     try {
       await register(form)
-      navigate('/dashboard', { replace: true })
+      setSuccess('Account created successfully! Redirecting to your dashboard...')
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true })
+      }, 1200)
     } catch (err) {
       setError(err.message || 'Could not create your account.')
       if (err.errors?.length) {
@@ -86,6 +93,17 @@ export default function Register() {
         >
           <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Create your account</h1>
           <p className="text-gray-500 mb-8">Set up a customer account to start shipping with UTHAO.</p>
+
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-green-50 text-green-700 border border-green-200 px-4 py-3 rounded-xl mb-6 text-sm font-medium flex items-center gap-2"
+            >
+              <CheckCircle size={18} className="text-green-600 flex-shrink-0" />
+              <span>{success}</span>
+            </motion.div>
+          )}
 
           {error && (
             <div className="bg-red-50 text-red-600 border border-red-200 px-4 py-3 rounded-xl mb-6 text-sm">
@@ -168,16 +186,27 @@ export default function Register() {
               <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-1.5">
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                required
-                minLength={6}
-                value={form.password}
-                onChange={update('password')}
-                placeholder="At least 6 characters"
-                className={inputClass}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  value={form.password}
+                  onChange={update('password')}
+                  placeholder="At least 6 characters"
+                  className={`${inputClass} pr-12`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors p-1"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
               {fieldErrors.password && (
                 <p className="text-xs text-red-600 mt-1">{fieldErrors.password}</p>
               )}
@@ -185,12 +214,12 @@ export default function Register() {
 
             <motion.button
               type="submit"
-              disabled={loading}
-              whileHover={{ scale: loading ? 1 : 1.02 }}
-              whileTap={{ scale: loading ? 1 : 0.98 }}
+              disabled={loading || !!success}
+              whileHover={{ scale: loading || success ? 1 : 1.02 }}
+              whileTap={{ scale: loading || success ? 1 : 0.98 }}
               className="w-full py-4 mt-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-lg rounded-xl shadow-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating account…' : 'Create account'}
+              {loading ? 'Creating account…' : success ? 'Successfully Registered!' : 'Create account'}
             </motion.button>
           </form>
 
