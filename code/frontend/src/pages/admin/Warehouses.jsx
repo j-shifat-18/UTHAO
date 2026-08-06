@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../../api/client'
-import { PageHeader, StatusBadge, EmptyState, Pagination, TrackingTag } from '../../components/Bits.jsx'
+import { PageHeader, StatusBadge, EmptyState, Pagination } from '../../components/Bits.jsx'
 import { Plus, Edit2, X, Warehouse as WarehouseIcon, MapPin, Building, Package } from 'lucide-react'
 
 const inputClass = 'w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white text-gray-800'
@@ -295,12 +295,9 @@ export default function Warehouses() {
                           <WarehouseIcon size={18} className="text-red-500 shrink-0" />
                           <div>
                             <p className="font-semibold text-gray-900">{w.name}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs font-mono font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
-                                {w.code}
-                              </span>
-                              <TrackingTag id={w.id} label="WH" />
-                            </div>
+                            <span className="text-xs font-mono font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                              {w.code}
+                            </span>
                           </div>
                         </div>
                       </td>

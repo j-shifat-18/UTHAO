@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../../api/client'
-import { PageHeader, StatusBadge, EmptyState, Pagination, TrackingTag } from '../../components/Bits.jsx'
+import { PageHeader, StatusBadge, EmptyState, Pagination } from '../../components/Bits.jsx'
 import { Plus, Edit2, X, Building2, MapPin, Phone, Mail, Clock } from 'lucide-react'
 
 const inputClass = 'w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white text-gray-800'
@@ -165,7 +165,8 @@ export default function Branches() {
       address: formData.address.trim(),
       phone: formData.phone.trim() || null,
       email: formData.email.trim() || null,
-      manager_id: formData.manager_id ? parseInt(formData.manager_id, 10) : null,
+      // manager_id is a UUID string — do NOT parseInt it
+      manager_id: formData.manager_id ? formData.manager_id : null,
       opening_time: formData.opening_time || null,
       closing_time: formData.closing_time || null,
       is_active: formData.is_active,
@@ -295,12 +296,9 @@ export default function Branches() {
                         <Building2 size={16} className="text-red-500 shrink-0" />
                         <div>
                           <p className="font-semibold text-gray-900">{b.name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs font-mono font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
-                              {b.code}
-                            </span>
-                            <TrackingTag id={b.id} label="BR" />
-                          </div>
+                          <span className="text-xs font-mono font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                            {b.code}
+                          </span>
                         </div>
                       </div>
                     </td>

@@ -260,7 +260,7 @@ export default function CreateParcel() {
                   <select
                     className={inputClass}
                     value={formData.origin_branch_id}
-                    onChange={(e) => setFormData({ ...formData, origin_branch_id: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, origin_branch_id: e.target.value }))}
                   >
                     {branches.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -276,13 +276,14 @@ export default function CreateParcel() {
                     className={inputClass}
                     value={formData.destination_branch_id}
                     onChange={(e) => {
-                      const selectedBranch = branches.find((b) => String(b.id) === String(e.target.value))
-                      setFormData({
-                        ...formData,
-                        destination_branch_id: e.target.value,
-                        delivery_city: selectedBranch ? selectedBranch.city : formData.delivery_city,
-                        delivery_state: selectedBranch ? selectedBranch.state : formData.delivery_state,
-                      })
+                      const val = e.target.value
+                      const selectedBranch = branches.find((b) => String(b.id) === String(val))
+                      setFormData((prev) => ({
+                        ...prev,
+                        destination_branch_id: val,
+                        delivery_city: selectedBranch ? selectedBranch.city : prev.delivery_city,
+                        delivery_state: selectedBranch ? selectedBranch.state : prev.delivery_state,
+                      }))
                     }}
                   >
                     {branches.map((b) => (
@@ -300,8 +301,8 @@ export default function CreateParcel() {
                   <input
                     className={inputClass}
                     placeholder="e.g. Dhaka"
-                    value="Dhaka"
-                    readOnly
+                    value={formData.delivery_city}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, delivery_city: e.target.value }))}
                   />
                 </div>
                 <div>
@@ -310,7 +311,7 @@ export default function CreateParcel() {
                     className={inputClass}
                     placeholder="e.g. Chittagong"
                     value={formData.delivery_city}
-                    onChange={(e) => setFormData({ ...formData, delivery_city: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, delivery_city: e.target.value }))}
                   />
                 </div>
               </div>
@@ -411,7 +412,7 @@ export default function CreateParcel() {
                 <select
                   className={inputClass}
                   value={formData.category_id}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, category_id: e.target.value }))}
                 >
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -429,7 +430,7 @@ export default function CreateParcel() {
                   min="0.1"
                   className={inputClass}
                   value={formData.weight_kg}
-                  onChange={(e) => setFormData({ ...formData, weight_kg: e.target.value })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, weight_kg: e.target.value }))}
                 />
               </div>
 
@@ -438,7 +439,7 @@ export default function CreateParcel() {
                 <select
                   className={inputClass}
                   value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, priority: e.target.value }))}
                 >
                   <option value="standard">Standard (1.0x)</option>
                   <option value="express">Express (1.5x)</option>

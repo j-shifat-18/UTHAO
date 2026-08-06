@@ -55,9 +55,11 @@ export default function Dashboard() {
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 capitalize">
               {user?.role}
             </span>
-            <span className="font-mono text-xs text-gray-400 border border-dashed border-gray-300 rounded px-2 py-0.5">
-              ACC-{user?.id}
-            </span>
+            {user?.is_active && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                Active
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-500">{user?.email}</p>
         </div>
@@ -93,8 +95,8 @@ export default function Dashboard() {
       >
         <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick links</h3>
         <div className="flex flex-wrap gap-3">
-          <QuickLink to="/dashboard/book-parcel" icon={PlusCircle}>Book new parcel</QuickLink>
-          <QuickLink to="/dashboard/my-parcels" icon={PackageCheck}>My parcels</QuickLink>
+          {!isAdminLike && <QuickLink to="/dashboard/book-parcel" icon={PlusCircle}>Book new parcel</QuickLink>}
+          {!isAdminLike && <QuickLink to="/dashboard/my-parcels" icon={PackageCheck}>My parcels</QuickLink>}
           <QuickLink to="/dashboard/profile" icon={UserCircle}>Update profile</QuickLink>
           <QuickLink to="/dashboard/addresses" icon={MapPin}>Manage addresses</QuickLink>
           {isAdminLike && <QuickLink to="/dashboard/admin/parcels" icon={Boxes}>Manage all parcels</QuickLink>}
