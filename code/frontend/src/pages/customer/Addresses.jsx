@@ -31,11 +31,14 @@ export default function Addresses() {
       try {
         const me = await api.get('/customers/me')
         if (!active) return
-        const cid = me.data.id
+        const customer = me.data?.data || me.data
+        const cid = customer?.id
         setCustomerId(cid)
-        const list = await api.get(`/customers/${cid}/addresses`)
-        if (!active) return
-        setAddresses(list.data || [])
+        if (cid) {
+          const list = await api.get(`/customers/${cid}/addresses`)
+          if (!active) return
+          setAddresses(list.data?.data || list.data || [])
+        }
       } catch (err) {
         setError(err.message)
       } finally {
@@ -55,11 +58,16 @@ export default function Addresses() {
 
   async function onSubmit(e) {
     e.preventDefault()
+    if (!customerId) {
+      setError('Customer profile missing.')
+      return
+    }
     setSaving(true)
     setError('')
     try {
       const res = await api.post(`/customers/${customerId}/addresses`, form)
-      setAddresses((list) => [...list, res.data])
+      const newAddr = res.data?.data || res.data
+      setAddresses((list) => [...list, newAddr])
       setForm(emptyForm)
       setShowForm(false)
     } catch (err) {

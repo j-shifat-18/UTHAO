@@ -19,13 +19,13 @@ export default function Profile() {
     api.get('/customers/me')
       .then((res) => {
         if (!active) return
-        // Axios wraps body in res.data
-        const data = res.data
+        // Extract customer object from backend payload { success: true, message: '...', data: customer }
+        const data = res.data?.data || res.data
         setProfile(data)
         setForm({
           first_name: data.first_name || '',
           last_name: data.last_name || '',
-          date_of_birth: data.date_of_birth || '',
+          date_of_birth: data.date_of_birth ? String(data.date_of_birth).split('T')[0] : '',
           gender: data.gender || '',
         })
       })
@@ -40,12 +40,17 @@ export default function Profile() {
 
   async function onSubmit(e) {
     e.preventDefault()
+    if (!profile?.id) {
+      setError('Customer ID not found. Please refresh the page.')
+      return
+    }
     setSaving(true)
     setError('')
     setSuccess('')
     try {
       const res = await api.patch(`/customers/${profile.id}`, form)
-      setProfile(res.data)
+      const updated = res.data?.data || res.data
+      setProfile(updated)
       setSuccess('Profile updated successfully.')
     } catch (err) {
       setError(err.message || 'Could not save your changes.')
@@ -80,8 +85,8 @@ export default function Profile() {
           </div>
         )}
         {success && (
-          <div className="bg-green-50 text-green-700 border border-green-200 px-4 py-2.5 rounded-xl mb-5 text-sm">
-            {success}
+          <div className="bg-green-50 text-green-700 border border-green-200 px-4 py-2.5 rounded-xl mb-5 text-sm font-medium">
+            ✓ {success}
           </div>
         )}
 
