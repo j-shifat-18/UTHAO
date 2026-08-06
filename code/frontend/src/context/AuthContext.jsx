@@ -15,8 +15,10 @@ export function AuthProvider({ children }) {
       return
     }
     try {
+      // Backend returns { success: true, message: '...', data: user }
       const res = await api.get('/auth/profile')
-      setUser(res.data)
+      const profile = res.data?.data || res.data
+      setUser(profile)
     } catch {
       clearTokens()
       setUser(null)
@@ -30,24 +32,33 @@ export function AuthProvider({ children }) {
   }, [loadProfile])
 
   async function login(email, password) {
+    // Pass { auth: false } so interceptor skips Bearer header
     const res = await api.post('/auth/login', { email, password }, { auth: false })
-    const { access_token, refresh_token, user: u } = res.data
-    setTokens(access_token, refresh_token)
+    // Backend returns { success: true, message: '...', data: { access_token, refresh_token, user } }
+    const payload = res.data?.data || res.data
+    const { access_token, refresh_token, user: u } = payload
+    if (access_token && refresh_token) {
+      setTokens(access_token, refresh_token)
+    }
     setUser(u)
     return u
   }
 
   async function register(payload) {
     const res = await api.post('/auth/register', payload, { auth: false })
-    const { access_token, refresh_token, user: u } = res.data
-    setTokens(access_token, refresh_token)
+    // Backend returns { success: true, message: '...', data: { access_token, refresh_token, user } }
+    const data = res.data?.data || res.data
+    const { access_token, refresh_token, user: u } = data
+    if (access_token && refresh_token) {
+      setTokens(access_token, refresh_token)
+    }
     setUser(u)
     return u
   }
 
   async function logout() {
     try {
-      await api.post('/auth/logout', undefined)
+      await api.post('/auth/logout')
     } catch {
       // ignore network errors on logout, clear locally regardless
     }
