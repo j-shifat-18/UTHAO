@@ -6,10 +6,13 @@ import Register from './pages/auth/Register.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Profile from './pages/customer/Profile.jsx'
 import Addresses from './pages/customer/Addresses.jsx'
+import CreateParcel from './pages/customer/CreateParcel.jsx'
+import MyParcels from './pages/customer/MyParcels.jsx'
 import Users from './pages/admin/Users.jsx'
 import Customers from './pages/admin/Customers.jsx'
 import Branches from './pages/admin/Branches.jsx'
 import Warehouses from './pages/admin/Warehouses.jsx'
+import AdminParcels from './pages/admin/Parcels.jsx'
 import NotFound from './pages/NotFound.jsx'
 import LandingPage from './pages/LandingPage.jsx'
 import { useAuth } from './context/AuthContext.jsx'
@@ -41,6 +44,16 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="profile" element={<Profile />} />
         <Route path="addresses" element={<Addresses />} />
+        <Route path="book-parcel" element={<CreateParcel />} />
+        <Route path="my-parcels" element={<MyParcels />} />
+        <Route
+          path="admin/parcels"
+          element={
+            <ProtectedRoute adminOnly>
+              <AdminParcels />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="admin/users"
           element={
