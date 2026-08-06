@@ -72,8 +72,9 @@ export default function MyParcels() {
     setLoadingTracking(true)
     try {
       const res = await api.get(`/parcels/${parcel.id}/tracking`)
-      const history = res.data?.data || []
-      setTrackingHistory(history)
+      // Backend returns { data: { parcel, history } }
+      const body = res.data?.data
+      setTrackingHistory(Array.isArray(body) ? body : (body?.history || []))
     } catch {
       setTrackingHistory([])
     } finally {

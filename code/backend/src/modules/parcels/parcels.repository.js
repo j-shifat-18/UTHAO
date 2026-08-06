@@ -142,11 +142,11 @@ const updateParcelStatus = async ({ parcel_id, status, location, notes, changed_
   return withTransaction(async (client) => {
     const result = await client.query(
       `UPDATE parcels SET status = $1,
-         actual_delivery_date = CASE WHEN $1 = 'delivered' THEN NOW() ELSE actual_delivery_date END,
-         cancelled_at = CASE WHEN $1 = 'cancelled' THEN NOW() ELSE cancelled_at END
-       WHERE id = $2
+         actual_delivery_date = CASE WHEN $2 = 'delivered' THEN NOW() ELSE actual_delivery_date END,
+         cancelled_at = CASE WHEN $3 = 'cancelled' THEN NOW() ELSE cancelled_at END
+       WHERE id = $4
        RETURNING id, tracking_number, status`,
-      [status, parcel_id]
+      [status, status, status, parcel_id]
     );
 
     if (!result.rows[0]) return null;

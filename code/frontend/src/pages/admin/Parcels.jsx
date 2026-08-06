@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../../api/client'
-import { PageHeader, EmptyState, Pagination, TrackingTag } from '../../components/Bits.jsx'
+import { PageHeader, EmptyState, Pagination } from '../../components/Bits.jsx'
 import { Package, Truck, Clock, Edit3, X, ExternalLink, Filter, MapPin } from 'lucide-react'
 
 const ALLOWED_TRANSITIONS = {
@@ -124,7 +124,9 @@ export default function AdminParcels() {
     setLoadingHistory(true)
     try {
       const res = await api.get(`/parcels/${parcel.id}/tracking`)
-      setTrackingHistory(res.data?.data || [])
+      // Backend returns { data: { parcel, history } }
+      const body = res.data?.data
+      setTrackingHistory(Array.isArray(body) ? body : (body?.history || []))
     } catch {
       setTrackingHistory([])
     } finally {
