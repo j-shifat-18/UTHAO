@@ -122,7 +122,7 @@ export default function Addresses() {
                   <label htmlFor="label" className="block text-xs font-semibold text-gray-600 mb-1.5">Label</label>
                   <select id="label" value={form.label} onChange={update('label')} className={inputClass}>
                     <option value="home">Home</option>
-                    <option value="work">Work</option>
+                    <option value="office">Office / Work</option>
                     <option value="other">Other</option>
                   </select>
                 </div>

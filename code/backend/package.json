@@ -5,7 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "dev": "LOG_PRETTY=true nodemon src/server.js",
     "migrate": "node src/database/migrate.js",
     "db:drop": "node src/database/drop.js",
     "db:reset": "node src/database/drop.js && node src/database/migrate.js"

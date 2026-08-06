@@ -1,33 +1,25 @@
 const { Pool } = require('pg');
-const env = require('./env');
-const logger = require('./logger');
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 const pool = new Pool({
-  connectionString: env.db.url,
-  max: 20,
+  connectionString: process.env.DATABASE_URL,
+  max: isProduction ? 3 : 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
-
-pool.on('connect', () => {
-  logger.debug('New database connection established');
+  connectionTimeoutMillis: 10000,
+  ssl: isProduction ? { rejectUnauthorized: false } : false,
 });
 
 pool.on('error', (err) => {
-  logger.error({ err }, 'Unexpected database pool error');
+  console.error('Unexpected database pool error:', err.message);
 });
 
-// Helper to test connection on startup
+// Used locally to verify connection on startup
 const connectDB = async () => {
-  try {
-    const client = await pool.connect();
-    const result = await client.query('SELECT NOW()');
-    client.release();
-    logger.info(`Database connected at ${result.rows[0].now}`);
-  } catch (err) {
-    logger.fatal({ err }, 'Failed to connect to database');
-    process.exit(1);
-  }
+  const client = await pool.connect();
+  const result = await client.query('SELECT NOW()');
+  client.release();
+  console.log('Database connected at', result.rows[0].now);
 };
 
 module.exports = { pool, connectDB };

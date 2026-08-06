@@ -1,7 +1,5 @@
-const dotenv = require('dotenv');
-const path = require('path');
-
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Load .env file in local development (no-op on Vercel where env vars are injected)
+require('dotenv').config();
 
 const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -19,7 +17,7 @@ const env = {
   },
 
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   },
 
   bcrypt: {
@@ -27,11 +25,10 @@ const env = {
   },
 };
 
-// Validate required env vars
 const required = ['DATABASE_URL', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'];
 for (const key of required) {
   if (!process.env[key]) {
-    throw new Error(`Missing required environment variable: ${key}`);
+    console.error(`[env] Missing required variable: ${key}`);
   }
 }
 
