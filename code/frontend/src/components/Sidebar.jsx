@@ -13,10 +13,9 @@ const NavItem = ({ to, end, icon: Icon, children, onClick }) => (
     end={end}
     onClick={onClick}
     className={({ isActive }) =>
-      `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-        isActive
-          ? 'bg-red-600 text-white shadow-md shadow-red-900/20'
-          : 'text-gray-300 hover:bg-white/10 hover:text-white'
+      `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${isActive
+        ? 'bg-red-600 text-white shadow-md shadow-red-900/20'
+        : 'text-gray-300 hover:bg-white/10 hover:text-white'
       }`
     }
   >
