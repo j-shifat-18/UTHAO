@@ -31,7 +31,7 @@ export default function LandingPage() {
     <div className="landing-page">
       <AnimatePresence>
         {showSplash && (
-          <motion.div 
+          <motion.div
             className="splash-screen"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}

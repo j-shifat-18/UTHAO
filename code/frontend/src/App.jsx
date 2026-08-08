@@ -15,6 +15,7 @@ import Warehouses from './pages/admin/Warehouses.jsx'
 import AdminParcels from './pages/admin/Parcels.jsx'
 import NotFound from './pages/NotFound.jsx'
 import LandingPage from './pages/LandingPage.jsx'
+import AboutPage from './pages/AboutPage.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/about" element={<AboutPage />} />
       
       <Route
         path="/login"

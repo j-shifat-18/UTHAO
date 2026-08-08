@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff } from 'lucide-react'
+import BackButton from '../../components/common/BackButton.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
+import { LogoIcon } from '../../components/common/Logo.jsx'
 
 export default function Login() {
   const { login } = useAuth()
@@ -43,9 +45,10 @@ export default function Login() {
         transition={{ duration: 0.5 }}
         className="hidden lg:flex flex-col justify-between p-16 bg-gray-100 relative overflow-hidden"
       >
+        <BackButton className="absolute top-8 left-8" fallback="/" />
         {/* Logo */}
         <div className="flex items-center gap-2 text-2xl font-extrabold text-red-600">
-          <img src="/delivery-guy.png" alt="UTHAO" className="w-10 h-10 object-contain" />
+          <LogoIcon className="w-10 h-10" />
           UTHAO
         </div>
 
@@ -75,7 +78,8 @@ export default function Login() {
       </motion.div>
 
       {/* Right panel */}
-      <div className="flex items-center justify-center p-8 bg-gray-50">
+      <div className="flex items-center justify-center p-8 bg-gray-50 relative">
+        <BackButton className="absolute top-8 left-8 lg:hidden" fallback="/" />
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}

@@ -21,7 +21,7 @@ export default function Footer() {
               <a href="#" style={{ color: '#9CA3AF', textDecoration: 'none' }}>IN</a>
             </div>
           </div>
-          
+
           <div>
             <h4 className="footer-heading">Services</h4>
             <ul className="footer-links">
@@ -31,7 +31,7 @@ export default function Footer() {
               <li><a href="#">Warehousing</a></li>
             </ul>
           </div>
-          
+
           <div>
             <h4 className="footer-heading">Company</h4>
             <ul className="footer-links">
@@ -41,7 +41,7 @@ export default function Footer() {
               <li><a href="#">Contact Support</a></li>
             </ul>
           </div>
-          
+
           <div>
             <h4 className="footer-heading">Contact Us</h4>
             <ul className="footer-links">
@@ -51,7 +51,7 @@ export default function Footer() {
             </ul>
           </div>
         </div>
-        
+
         <div className="footer-bottom">
           <p>&copy; {new Date().getFullYear()} UTHAO Logistics. All rights reserved.</p>
           <div style={{ display: 'flex', gap: '24px' }}>

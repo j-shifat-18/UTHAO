@@ -27,7 +27,7 @@ export default function Navbar() {
           <a href="#services" className="text-gray-700 font-medium text-sm hover:text-red-600 transition-colors">Services</a>
           <a href="#coverage" className="text-gray-700 font-medium text-sm hover:text-red-600 transition-colors">Coverage</a>
           <a href="#tracking" className="text-gray-700 font-medium text-sm hover:text-red-600 transition-colors">Track Parcel</a>
-          <a href="#about" className="text-gray-700 font-medium text-sm hover:text-red-600 transition-colors">About</a>
+          <Link to="/about" className="text-gray-700 font-medium text-sm hover:text-red-600 transition-colors">About</Link>
         </div>
 
         {/* CTA buttons */}
