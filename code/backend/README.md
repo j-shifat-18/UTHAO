@@ -427,6 +427,200 @@ Customers can only update their own profile. Admins can update any.
 
 ---
 
+### Deliveries (Assignment Management)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /deliveries | Admin, Manager, Employee | List all assignments with filters |
+| POST | /deliveries | Admin, Manager, Employee | Assign agent to a parcel |
+| GET | /deliveries/my | Delivery Agent | Agent's own assignment queue |
+| GET | /deliveries/parcels/:parcelId | Admin, Manager, Employee | All assignments for a parcel |
+| GET | /deliveries/agents/:agentId | Admin, Manager | All assignments for an agent |
+| GET | /deliveries/:id | Admin, Manager, Employee, Agent | Get single assignment |
+| POST | /deliveries/:id/reassign | Admin, Manager, Employee | Reassign to different agent |
+| PATCH | /deliveries/:id/start | Delivery Agent | Mark assignment as in_progress |
+| PATCH | /deliveries/:id/complete | Admin, Manager, Employee, Agent | Mark assignment as completed |
+| PATCH | /deliveries/:id/fail | Admin, Manager, Employee, Agent | Mark assignment as failed |
+| PATCH | /deliveries/:id/notes | Admin, Manager, Employee, Agent | Update delivery notes |
+
+---
+
+#### POST /deliveries
+
+**Request:**
+```json
+{
+  "parcel_id": "uuid",
+  "agent_id": "uuid",
+  "assignment_type": "pickup",
+  "notes": "Call before arriving"
+}
+```
+
+`assignment_type` must be `pickup` or `delivery`.
+
+- `pickup` → parcel must be in `booked` status
+- `delivery` → parcel must be in `in_transit`, `at_warehouse`, or `out_for_delivery`
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "message": "Agent assigned successfully",
+  "data": {
+    "id": 1,
+    "parcel_id": "uuid",
+    "agent_id": "uuid",
+    "assignment_type": "pickup",
+    "status": "assigned",
+    "assigned_at": "2024-01-15T10:00:00.000Z",
+    "notes": "Call before arriving",
+    "assigned_by": "uuid"
+  }
+}
+```
+
+**Errors:** 400 (wrong parcel status, agent at capacity, agent unavailable), 404 (parcel/agent not found), 409 (duplicate active assignment)
+
+---
+
+#### POST /deliveries/:id/reassign
+
+**Request:**
+```json
+{
+  "agent_id": "new-agent-uuid",
+  "notes": "Original agent sick, reassigning"
+}
+```
+
+The existing assignment must have `status = 'assigned'`. It will be marked `reassigned` and a new `assigned` record is created.
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "message": "Agent reassigned successfully",
+  "data": {
+    "id": 2,
+    "parcel_id": "uuid",
+    "agent_id": "new-agent-uuid",
+    "assignment_type": "pickup",
+    "status": "assigned",
+    "assigned_at": "2024-01-15T11:00:00.000Z"
+  }
+}
+```
+
+---
+
+#### PATCH /deliveries/:id/start
+
+Agent-only. Moves the assignment from `assigned` → `in_progress`. Only the assigned agent can call this.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Assignment started",
+  "data": { "id": 1, "status": "in_progress", "..." }
+}
+```
+
+---
+
+#### PATCH /deliveries/:id/complete
+
+**Request (optional):**
+```json
+{ "notes": "Delivered to front desk" }
+```
+
+Moves assignment to `completed` and increments the agent's `total_deliveries` counter atomically. Agents can complete their own; staff can complete any.
+
+---
+
+#### PATCH /deliveries/:id/fail
+
+**Request (optional):**
+```json
+{ "notes": "Address not found, recipient unreachable" }
+```
+
+Moves assignment to `failed`. Use `PATCH /parcels/:id/status` separately to update the parcel status to `failed`.
+
+---
+
+#### PATCH /deliveries/:id/notes
+
+**Request:**
+```json
+{ "notes": "Recipient requested evening delivery" }
+```
+
+---
+
+#### GET /deliveries
+
+**Query Params:** `?status=assigned&assignment_type=pickup&agent_id=uuid&parcel_id=uuid&page=1&limit=10`
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "parcel_id": "uuid",
+      "tracking_number": "DHK-01-20240115-0001",
+      "parcel_status": "booked",
+      "receiver_name": "Karim Khan",
+      "delivery_city": "Dhaka",
+      "priority": "standard",
+      "agent_id": "uuid",
+      "agent_first_name": "Rahim",
+      "agent_last_name": "Ahmed",
+      "agent_email": "rahim@uthao.com",
+      "vehicle_type": "motorcycle",
+      "assignment_type": "pickup",
+      "status": "assigned",
+      "assigned_at": "2024-01-15T10:00:00.000Z",
+      "notes": null
+    }
+  ],
+  "meta": { "page": 1, "limit": 10, "totalCount": 5, "totalPages": 1 }
+}
+```
+
+---
+
+#### GET /deliveries/my
+
+**Query Params:** `?status=assigned&page=1&limit=10`
+
+Returns the authenticated delivery agent's own assignment list.
+
+---
+
+#### GET /deliveries/parcels/:parcelId
+
+Returns the full assignment history for a parcel (all records including reassigned/completed).
+
+**Response (200):**
+```json
+{
+  "data": {
+    "parcel": { "id": "uuid", "tracking_number": "DHK-01-20240115-0001", "status": "picked_up" },
+    "assignments": [
+      { "id": 1, "assignment_type": "pickup", "status": "completed", "agent_first_name": "Rahim", "..." },
+      { "id": 2, "assignment_type": "delivery", "status": "assigned", "agent_first_name": "Karim", "..." }
+    ]
+  }
+}
+```
+
+---
+
 ### Parcels
 
 | Method | Endpoint | Auth | Description |
