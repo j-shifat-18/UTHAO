@@ -427,6 +427,245 @@ Customers can only update their own profile. Admins can update any.
 
 ---
 
+### Reports
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /reports/daily-deliveries | Admin, Manager, Employee | Per-day parcel counts and revenue |
+| GET | /reports/delayed-parcels | Admin, Manager, Employee | Active parcels past estimated delivery date |
+| GET | /reports/warehouse-occupancy | Admin, Manager, Employee | Live capacity snapshot for all warehouses |
+| GET | /reports/delivery-success-rate | Admin, Manager, Employee | Success/failure/cancellation rate breakdown |
+| GET | /reports/avg-delivery-time | Admin, Manager, Employee | Average hours/days from booking to delivery |
+| GET | /reports/monthly-revenue | Admin, Manager | Revenue aggregated by calendar month |
+| GET | /reports/revenue-by-branch | Admin, Manager | Revenue totals per branch |
+| GET | /reports/top-delivery-agents | Admin, Manager | Agents ranked by completions in period |
+| GET | /reports/most-active-branches | Admin, Manager | Branches ranked by parcel volume |
+
+All report endpoints accept `?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`. Defaults to current month when omitted.
+
+---
+
+#### GET /reports/daily-deliveries
+
+Calls stored function `fn_daily_delivery_summary(p_from, p_to)`.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "rows": [
+      {
+        "day": "2024-01-01",
+        "total_booked": "24",
+        "total_delivered": "18",
+        "total_cancelled": "2",
+        "total_failed": "1",
+        "total_in_transit": "3",
+        "revenue": "2810.50"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/delayed-parcels
+
+Queries the `v_delayed_parcels` view. Includes `days_overdue` field.
+
+**Query Params:** `?priority=express&branch_id=1&page=1&limit=20`
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "tracking_number": "DHK-01-20240101-0005",
+      "status": "in_transit",
+      "priority": "express",
+      "estimated_delivery_date": "2024-01-10",
+      "days_overdue": "5",
+      "delivery_city": "Chittagong",
+      "origin_branch_name": "Dhaka Central",
+      "sender_first_name": "Rahim",
+      "sender_email": "rahim@example.com"
+    }
+  ],
+  "meta": { "page": 1, "limit": 20, "totalCount": 7, "totalPages": 1 }
+}
+```
+
+---
+
+#### GET /reports/warehouse-occupancy
+
+Queries the `v_warehouse_occupancy` view.
+
+**Query Params:** `?branch_id=1&city=Dhaka&is_active=true`
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "id": 1, "name": "Central Warehouse", "code": "WH-DHK-01",
+      "city": "Dhaka", "total_capacity": 500, "current_occupancy": 342,
+      "available_space": 158, "occupancy_pct": "68.40",
+      "branch_id": 1, "branch_name": "Dhaka Central", "is_active": true
+    }
+  ]
+}
+```
+
+---
+
+#### GET /reports/delivery-success-rate
+
+Calls `fn_delivery_success_rate(p_from, p_to)` plus breakdowns by priority and branch.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "summary": {
+      "total_parcels": "450", "delivered": "380", "failed": "22",
+      "cancelled": "35", "returned": "8", "in_progress": "5",
+      "success_rate_pct": "84.44", "failure_rate_pct": "4.89"
+    },
+    "by_priority": [
+      { "priority": "express",   "total": "90",  "delivered": "82", "success_rate_pct": "91.11" },
+      { "priority": "overnight", "total": "45",  "delivered": "43", "success_rate_pct": "95.56" },
+      { "priority": "standard",  "total": "315", "delivered": "255","success_rate_pct": "80.95" }
+    ],
+    "by_branch": [
+      { "branch_id": 1, "branch_name": "Dhaka Central", "total": "210", "delivered": "185", "success_rate_pct": "88.10" }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/avg-delivery-time
+
+Calls `fn_avg_delivery_time(p_from, p_to)` plus breakdown by priority tier.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "overall": {
+      "avg_hours": "28.50", "avg_days": "1.19",
+      "min_hours": "4.20", "max_hours": "96.80", "total_measured": "380"
+    },
+    "by_priority": [
+      { "priority": "overnight", "total_delivered": "43", "avg_hours": "9.80",  "avg_days": "0.41" },
+      { "priority": "express",   "total_delivered": "82", "avg_hours": "18.40", "avg_days": "0.77" },
+      { "priority": "standard",  "total_delivered": "255","avg_hours": "34.20", "avg_days": "1.43" }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/monthly-revenue
+
+Calls `fn_monthly_revenue(p_from, p_to)`. Groups completed payments by calendar month.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-03-31" },
+    "rows": [
+      { "month": "2024-01-01", "total_revenue": "47500.00", "total_payments": "312", "avg_payment": "152.24", "total_refunded": "1200.00" },
+      { "month": "2024-02-01", "total_revenue": "51200.00", "total_payments": "341", "avg_payment": "150.15", "total_refunded": "800.00" },
+      { "month": "2024-03-01", "total_revenue": "55800.00", "total_payments": "376", "avg_payment": "148.40", "total_refunded": "600.00" }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/revenue-by-branch
+
+Calls `fn_revenue_by_branch(p_from, p_to)`.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "rows": [
+      {
+        "branch_id": 1, "branch_name": "Dhaka Central", "branch_code": "DHK-01", "city": "Dhaka",
+        "total_revenue": "28500.00", "payment_count": "187",
+        "avg_payment": "152.41", "total_refunded": "800.00", "net_revenue": "27700.00"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/top-delivery-agents
+
+**Query Params:** `?date_from=2024-01-01&date_to=2024-01-31&limit=10`
+
+Calls `fn_top_delivery_agents(p_from, p_to, p_limit)`.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "rows": [
+      {
+        "agent_id": "uuid", "first_name": "Rahim", "last_name": "Ahmed",
+        "branch_name": "Dhaka Central", "vehicle_type": "motorcycle",
+        "rating": "4.80", "total_deliveries_all": 245,
+        "completed_in_period": "38", "failed_in_period": "2",
+        "success_rate_pct": "95.00"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/most-active-branches
+
+**Query Params:** `?date_from=2024-01-01&date_to=2024-01-31&limit=10`
+
+Calls `fn_most_active_branches(p_from, p_to, p_limit)`.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "rows": [
+      {
+        "branch_id": 1, "branch_name": "Dhaka Central", "branch_code": "DHK-01", "city": "Dhaka",
+        "total_parcels": "210", "delivered": "185", "cancelled": "12", "in_progress": "13",
+        "total_revenue": "28500.00", "employee_count": "5", "agent_count": "12"
+      }
+    ]
+  }
+}
+```
+
+---
+
 ### Payments
 
 | Method | Endpoint | Auth | Description |
