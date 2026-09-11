@@ -586,4 +586,144 @@ CREATE TRIGGER trg_payments_updated_at
     BEFORE UPDATE ON payments
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- TRIGGER: When a payment is marked 'completed', automatically:
+--   1. Set parcels.is_paid = true
+--   2. Set payments.paid_at = NOW() (if not already set)
+--   3. Auto-generate an invoice record (idempotent via ON CONFLICT DO NOTHING)
+--
+-- Why a trigger instead of application code?
+--   The parcel paid-flag and invoice creation are side-effects of a payment
+--   state change. Doing this in a trigger guarantees they happen even if a
+--   payment is updated outside the API (e.g. admin SQL fix, future payment
+--   gateway webhook). It also keeps the service layer simple.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION fn_on_payment_completed()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_invoice_number VARCHAR(30);
+BEGIN
+    -- Only fire when status transitions INTO 'completed'
+    IF NEW.status = 'completed' AND (OLD.status IS DISTINCT FROM 'completed') THEN
+
+        -- 1. Stamp paid_at if not already set
+        IF NEW.paid_at IS NULL THEN
+            NEW.paid_at = NOW();
+        END IF;
+
+        -- 2. Mark the parcel as paid
+        UPDATE parcels
+        SET is_paid = true, updated_at = NOW()
+        WHERE id = NEW.parcel_id;
+
+        -- 3. Generate a sequential invoice number: INV-YYYYMMDD-<payment_id prefix>
+        v_invoice_number := 'INV-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' ||
+                            UPPER(SUBSTRING(NEW.id::TEXT, 1, 8));
+
+        INSERT INTO invoices (
+            invoice_number, payment_id, customer_id,
+            amount, tax_amount, total_amount,
+            issued_at, due_date, status
+        ) VALUES (
+            v_invoice_number,
+            NEW.id,
+            NEW.customer_id,
+            NEW.amount,
+            ROUND(NEW.amount * 0.05, 2),          -- 5% VAT
+            ROUND(NEW.amount * 1.05, 2),           -- amount + VAT
+            NOW(),
+            (NOW() + INTERVAL '30 days')::DATE,
+            'paid'
+        )
+        ON CONFLICT (invoice_number) DO NOTHING;
+
+    END IF;
+
+    -- When a payment transitions to 'refunded', flip the invoice back to 'cancelled'
+    IF NEW.status = 'refunded' AND (OLD.status IS DISTINCT FROM 'refunded') THEN
+        UPDATE invoices
+        SET status = 'cancelled'
+        WHERE payment_id = NEW.id;
+
+        -- Also flip parcel back to unpaid
+        UPDATE parcels
+        SET is_paid = false, updated_at = NOW()
+        WHERE id = NEW.parcel_id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_payment_completed
+    BEFORE UPDATE ON payments
+    FOR EACH ROW EXECUTE FUNCTION fn_on_payment_completed();
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- FUNCTION: get_revenue_summary(p_from DATE, p_to DATE)
+-- Returns total revenue, total payments, average payment for a date range.
+-- Used by the revenue endpoint to avoid complex ad-hoc SQL in the application.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION get_revenue_summary(p_from DATE, p_to DATE)
+RETURNS TABLE (
+    total_revenue     NUMERIC,
+    total_payments    BIGINT,
+    avg_payment       NUMERIC,
+    total_refunded    NUMERIC,
+    net_revenue       NUMERIC
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0) AS total_revenue,
+        COUNT(CASE WHEN status = 'completed' THEN 1 END)                        AS total_payments,
+        COALESCE(AVG(CASE WHEN status = 'completed' THEN amount END), 0)        AS avg_payment,
+        COALESCE(SUM(CASE WHEN status = 'refunded'  THEN amount ELSE 0 END), 0) AS total_refunded,
+        COALESCE(SUM(CASE WHEN status = 'completed' THEN amount
+                          WHEN status = 'refunded'  THEN -amount
+                          ELSE 0 END), 0)                                       AS net_revenue
+    FROM payments
+    WHERE created_at::DATE BETWEEN p_from AND p_to;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- VIEW: v_payment_summary
+-- Joins payments with parcel, customer, payment_method for the list endpoints.
+-- Avoids repeating the same JOIN block in every query.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE VIEW v_payment_summary AS
+SELECT
+    pay.id,
+    pay.parcel_id,
+    pay.customer_id,
+    pay.amount,
+    pay.transaction_id,
+    pay.status,
+    pay.paid_at,
+    pay.notes,
+    pay.created_at,
+    pay.updated_at,
+    p.tracking_number,
+    p.delivery_cost,
+    p.payment_method  AS parcel_payment_method,
+    p.is_paid         AS parcel_is_paid,
+    pm.name           AS payment_method_name,
+    pm.id             AS payment_method_id,
+    c.first_name      AS customer_first_name,
+    c.last_name       AS customer_last_name,
+    u.email           AS customer_email,
+    u.phone           AS customer_phone
+FROM payments pay
+JOIN parcels          p  ON p.id  = pay.parcel_id
+JOIN payment_methods  pm ON pm.id = pay.payment_method_id
+JOIN customers        c  ON c.id  = pay.customer_id
+JOIN users            u  ON u.id  = c.user_id;
+
 COMMIT;

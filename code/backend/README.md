@@ -427,6 +427,154 @@ Customers can only update their own profile. Admins can update any.
 
 ---
 
+### Payments
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /payments/methods | None | List active payment methods |
+| GET | /payments/revenue | Admin, Manager | Revenue summary with daily & method breakdown |
+| GET | /payments/my | Customer | Own payment history |
+| GET | /payments/invoices/my | Customer | Own invoices |
+| GET | /payments/invoices | Admin, Manager, Employee | List all invoices |
+| GET | /payments/invoices/:id | Admin, Manager, Employee | Get invoice by ID |
+| GET | /payments/parcels/:parcelId | Admin, Manager, Employee | All payments for a parcel |
+| GET | /payments | Admin, Manager, Employee | List all payments with filters |
+| POST | /payments | Customer, Admin, Manager, Employee | Create a payment |
+| GET | /payments/:id | Any auth | Get payment by ID |
+| GET | /payments/:paymentId/invoice | Any auth | Get invoice for a payment |
+| PATCH | /payments/:id/verify | Admin, Manager, Employee | Verify / confirm a payment |
+| PATCH | /payments/:id/refund | Admin, Manager | Refund a completed payment |
+| PATCH | /payments/:id/fail | Admin, Manager, Employee | Mark payment as failed |
+
+---
+
+#### POST /payments
+
+Creates a payment record for a parcel. The amount is always taken from `parcel.delivery_cost` — the client cannot supply or override it.
+
+**Request:**
+```json
+{
+  "parcel_id": "uuid",
+  "payment_method_id": 2,
+  "transaction_id": "BKH-20240115-XXXXX",
+  "notes": "bKash payment"
+}
+```
+
+Staff must also include `"customer_id": "uuid"` when creating on behalf of a customer (COD collection).
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "message": "Payment created",
+  "data": {
+    "id": "uuid",
+    "parcel_id": "uuid",
+    "customer_id": "uuid",
+    "amount": "117.50",
+    "status": "pending",
+    "transaction_id": null,
+    "paid_at": null,
+    "created_at": "2024-01-15T10:00:00.000Z"
+  }
+}
+```
+
+**Errors:** 400 (invalid method, wrong parcel status), 403 (own parcels only for customers), 404 (parcel/customer not found), 409 (already paid or payment exists)
+
+---
+
+#### PATCH /payments/:id/verify
+
+Confirms a pending payment as received. Internally runs `UPDATE payments SET status = 'completed'`. The PostgreSQL trigger `fn_on_payment_completed` then:
+1. Stamps `paid_at = NOW()`
+2. Sets `parcels.is_paid = true`
+3. Auto-generates an invoice with 5% VAT
+
+**Request (optional):**
+```json
+{ "transaction_id": "BKH-20240115-XXXXX" }
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Payment verified successfully",
+  "data": { "id": "uuid", "status": "completed", "paid_at": "2024-01-15T10:05:00.000Z" }
+}
+```
+
+---
+
+#### PATCH /payments/:id/refund
+
+Refunds a completed payment. The trigger reverses `parcels.is_paid = false` and cancels the linked invoice.
+
+**Request:**
+```json
+{ "notes": "Customer returned parcel — COD not applicable" }
+```
+
+---
+
+#### GET /payments/revenue
+
+**Query Params:** `?date_from=2024-01-01&date_to=2024-01-31` (defaults to current month)
+
+Calls the PostgreSQL stored function `get_revenue_summary(p_from, p_to)`.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "summary": {
+      "total_revenue": "47500.00",
+      "total_payments": "312",
+      "avg_payment": "152.24",
+      "total_refunded": "1200.00",
+      "net_revenue": "46300.00"
+    },
+    "by_day": [
+      { "date": "2024-01-01", "payment_count": "18", "revenue": "2810.50" }
+    ],
+    "by_method": [
+      { "payment_method": "bkash", "payment_count": "145", "revenue": "22350.00" },
+      { "payment_method": "cash",  "payment_count": "98",  "revenue": "15200.00" }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /payments/:paymentId/invoice
+
+Returns the auto-generated invoice for a payment. The invoice is created by the DB trigger when a payment is verified.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "id": 1,
+    "invoice_number": "INV-20240115-A1B2C3D4",
+    "payment_id": "uuid",
+    "customer_id": "uuid",
+    "amount": "117.50",
+    "tax_amount": "5.88",
+    "total_amount": "123.38",
+    "status": "paid",
+    "issued_at": "2024-01-15T10:05:00.000Z",
+    "due_date": "2024-02-14"
+  }
+}
+```
+
+---
+
 ### Deliveries (Assignment Management)
 
 | Method | Endpoint | Auth | Description |
