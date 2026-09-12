@@ -18,6 +18,11 @@ import LandingPage from './pages/LandingPage.jsx'
 import AboutPage from './pages/AboutPage.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 
+import DeliveryTracking from './pages/delivery/DeliveryTracking.jsx'
+import BookDelivery from './pages/delivery/BookDelivery.jsx'
+import DeliveryAgentPortal from './pages/delivery/DeliveryAgentPortal.jsx'
+import DeliveryManagement from './pages/delivery/DeliveryManagement.jsx'
+
 export default function App() {
   const { user, booting } = useAuth()
 
@@ -46,6 +51,14 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="profile" element={<Profile />} />
         <Route path="addresses" element={<Addresses />} />
+        <Route path="delivery/track" element={<DeliveryTracking />} />
+        <Route path="delivery/book" element={<BookDelivery />} />
+        <Route path="delivery/agent" element={<DeliveryAgentPortal />} />
+        <Route
+          path="delivery/manage"
+          element={
+            <ProtectedRoute adminOnly>
+              <DeliveryManagement />
         <Route path="book-parcel" element={<CreateParcel />} />
         <Route path="my-parcels" element={<MyParcels />} />
         <Route
