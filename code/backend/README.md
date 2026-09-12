@@ -1,46 +1,47 @@
-# UTHAO - Smart Logistics & Parcel Delivery Management System
+# UTHAO — Smart Logistics & Parcel Delivery Management System
+
+Backend API built with Node.js, Express, PostgreSQL (Supabase), and raw SQL via `pg`.
+
+---
+
+## Tech Stack
+
+- Node.js + Express.js
+- PostgreSQL (Supabase) via `node-postgres (pg)`
+- JWT (access + refresh token auth)
+- bcrypt for password hashing
+- Pino for structured logging
+
+---
 
 ## Setup
 
 ```bash
-cp .env.example .env
-# Fill in your Supabase DATABASE_URL and JWT secrets
+# 1. Clone and install
 npm install
-```
 
-## Database Setup
+# 2. Configure environment
+cp .env.example .env
+# Fill in DATABASE_URL, JWT secrets
 
-You need to create the tables in your Supabase database before the API will work.
-
-**Option 1: Using the CLI (recommended)**
-
-```bash
+# 3. Run database migrations (creates all tables in Supabase)
 npm run migrate
-```
 
-This runs `src/sql/migrations/complete_schema.sql` against your Supabase database.
-
-**Option 2: Using Supabase Dashboard**
-
-1. Go to your Supabase project → **SQL Editor**
-2. Copy the entire contents of `src/sql/migrations/complete_schema.sql`
-3. Paste it in the editor and click **Run**
-
-**Other database commands:**
-
-```bash
-# Drop all tables (WARNING: destroys all data)
-npm run db:drop
-
-# Reset database (drop + recreate)
-npm run db:reset
-```
-
-## Run the Server
-
-```bash
+# 4. Start dev server
 npm run dev
 ```
+
+## Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start with nodemon (auto-restart) |
+| `npm start` | Start in production mode |
+| `npm run migrate` | Create all tables in the database |
+| `npm run db:drop` | Drop all tables (dev only) |
+| `npm run db:reset` | Drop + recreate all tables |
+
+---
 
 ## Base URL
 
@@ -50,21 +51,79 @@ http://localhost:5000/api/v1
 
 ---
 
+## Response Format
+
+All responses follow this structure:
+
+**Success:**
+```json
+{
+  "success": true,
+  "message": "...",
+  "data": { },
+  "meta": { "page": 1, "limit": 10, "totalCount": 45, "totalPages": 5, "hasNextPage": true, "hasPrevPage": false }
+}
+```
+
+**Error:**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": [ { "field": "email", "message": "Email is required" } ]
+}
+```
+
+---
+
+## Authentication
+
+All protected endpoints require:
+```
+Authorization: Bearer <access_token>
+```
+
+Access token expires in **15 minutes**. Use `/auth/refresh-token` to get a new one.
+
+---
+
+## Roles
+
+| Role | Description |
+|------|-------------|
+| `admin` | Full system access |
+| `manager` | Branch/warehouse management |
+| `branch_employee` | Parcel processing |
+| `delivery_agent` | Pickup and delivery |
+| `customer` | Self-service parcel booking |
+
+---
+
 ## API Endpoints
 
-### Auth Module
+---
 
-#### POST /api/v1/auth/register
+### Auth
 
-Register a new customer account.
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | /auth/register | No | Register new customer |
+| POST | /auth/login | No | Login, receive tokens |
+| POST | /auth/refresh-token | No | Refresh access token |
+| POST | /auth/logout | Yes | Invalidate refresh token |
+| GET | /auth/profile | Yes | Get current user info |
 
-**Request Body:**
+---
+
+#### POST /auth/register
+
+**Request:**
 ```json
 {
   "email": "user@example.com",
-  "password": "secret123",
-  "first_name": "John",
-  "last_name": "Doe",
+  "password": "mypassword123",
+  "first_name": "Rahim",
+  "last_name": "Ahmed",
   "phone": "+8801712345678"
 }
 ```
@@ -75,335 +134,1032 @@ Register a new customer account.
   "success": true,
   "message": "Registration successful",
   "data": {
-    "user": {
-      "id": "uuid",
-      "email": "user@example.com",
-      "phone": "+8801712345678",
-      "role": "customer",
-      "is_active": true,
-      "created_at": "2024-01-01T00:00:00.000Z"
-    },
-    "access_token": "eyJhbGciOiJIUzI1...",
-    "refresh_token": "eyJhbGciOiJIUzI1..."
+    "user": { "id": "uuid", "email": "user@example.com", "role": "customer", "is_active": true },
+    "access_token": "eyJ...",
+    "refresh_token": "eyJ..."
   }
 }
 ```
 
+**Errors:** 400 (validation), 409 (email already exists)
+
 ---
 
-#### POST /api/v1/auth/login
+#### POST /auth/login
 
-Login with email and password.
-
-**Request Body:**
+**Request:**
 ```json
-{
-  "email": "user@example.com",
-  "password": "secret123"
-}
+{ "email": "user@example.com", "password": "mypassword123" }
 ```
 
 **Response (200):**
 ```json
 {
-  "success": true,
-  "message": "Login successful",
   "data": {
-    "user": {
-      "id": "uuid",
-      "email": "user@example.com",
-      "phone": "+8801712345678",
-      "role": "customer",
-      "is_active": true
-    },
-    "access_token": "eyJhbGciOiJIUzI1...",
-    "refresh_token": "eyJhbGciOiJIUzI1..."
+    "user": { "id": "uuid", "email": "...", "role": "customer" },
+    "access_token": "eyJ...",
+    "refresh_token": "eyJ..."
   }
+}
+```
+
+**Errors:** 401 (invalid credentials), 403 (account deactivated)
+
+---
+
+#### POST /auth/refresh-token
+
+**Request:** `{ "refresh_token": "eyJ..." }`
+
+**Response:** `{ "data": { "access_token": "eyJ...", "refresh_token": "eyJ..." } }`
+
+---
+
+#### POST /auth/logout
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response:** `{ "message": "Logged out successfully" }`
+
+---
+
+#### GET /auth/profile
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response:**
+```json
+{
+  "data": { "id": "uuid", "email": "...", "role": "customer", "is_active": true, "is_verified": false }
 }
 ```
 
 ---
 
-#### POST /api/v1/auth/refresh-token
+### Users (Admin/Manager only)
 
-Get new access and refresh tokens.
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /users | Admin, Manager | List all users |
+| GET | /users/:id | Admin, Manager | Get user by ID |
+| PATCH | /users/:id | Admin, Manager | Update user |
+| PATCH | /users/:id/deactivate | Admin, Manager | Soft-delete user |
+| PATCH | /users/:id/activate | Admin, Manager | Reactivate user |
 
-**Request Body:**
-```json
-{
-  "refresh_token": "eyJhbGciOiJIUzI1..."
-}
-```
+---
+
+#### GET /users
+
+**Query Params:** `?page=1&limit=10&search=rahim&role=customer&is_active=true`
 
 **Response (200):**
 ```json
 {
-  "success": true,
-  "message": "Tokens refreshed",
+  "data": [
+    { "id": "uuid", "email": "...", "phone": "...", "role": "customer", "is_active": true, "created_at": "..." }
+  ],
+  "meta": { "page": 1, "limit": 10, "totalCount": 45, "totalPages": 5 }
+}
+```
+
+---
+
+#### PATCH /users/:id
+
+**Request (any subset):**
+```json
+{ "email": "new@email.com", "phone": "+880...", "role_id": 2, "is_active": true }
+```
+
+---
+
+#### PATCH /users/:id/deactivate
+
+Sets `is_active = false`. User cannot login but data is preserved.
+
+---
+
+### Customers
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /customers/me | Customer | Get own profile |
+| GET | /customers | Admin, Manager | List all customers |
+| GET | /customers/:id | Any auth | Get customer by ID |
+| PATCH | /customers/:id | Any auth | Update customer profile |
+| GET | /customers/:id/addresses | Any auth | Get customer addresses |
+| POST | /customers/:id/addresses | Any auth | Add address |
+
+---
+
+#### GET /customers/me
+
+**Response:**
+```json
+{
   "data": {
-    "access_token": "eyJhbGciOiJIUzI1...",
-    "refresh_token": "eyJhbGciOiJIUzI1..."
+    "id": "customer-uuid", "user_id": "user-uuid",
+    "first_name": "Rahim", "last_name": "Ahmed",
+    "email": "rahim@example.com", "phone": "+880...",
+    "gender": null, "date_of_birth": null
   }
 }
 ```
 
 ---
 
-#### POST /api/v1/auth/logout
+#### PATCH /customers/:id
 
-Logout (clears refresh token). Requires authentication.
+Customers can only update their own profile. Admins can update any.
 
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "message": "Logged out successfully",
-  "data": null
-}
-```
-
----
-
-#### GET /api/v1/auth/profile
-
-Get current user profile. Requires authentication.
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "message": "Profile fetched",
-  "data": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "phone": "+8801712345678",
-    "role_id": 5,
-    "role": "customer",
-    "is_active": true,
-    "is_verified": false,
-    "created_at": "2024-01-01T00:00:00.000Z"
-  }
-}
-```
-
----
-
-### Error Response Format
-
-```json
-{
-  "success": false,
-  "message": "Validation failed",
-  "errors": [
-    { "field": "email", "message": "Email is required" }
-  ]
-}
-```
-
-
----
-
-### Users Module (Admin/Manager only)
-
-#### GET /api/v1/users
-
-List all users with pagination, search, and filtering.
-
-**Query Params:** `?page=1&limit=10&search=john&role=customer&is_active=true`
-
-**Headers:** `Authorization: Bearer <admin_token>`
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "message": "Users fetched",
-  "data": [ { "id": "uuid", "email": "...", "role": "customer", "is_active": true } ],
-  "meta": { "page": 1, "limit": 10, "totalCount": 45, "totalPages": 5, "hasNextPage": true, "hasPrevPage": false }
-}
-```
-
----
-
-#### GET /api/v1/users/:id
-
-Get single user details.
-
----
-
-#### PATCH /api/v1/users/:id
-
-Update user (email, phone, is_active, role_id).
-
-**Request Body:**
-```json
-{ "email": "new@email.com", "role_id": 2 }
-```
-
----
-
-#### PATCH /api/v1/users/:id/deactivate
-
-Soft-delete (deactivate) a user.
-
----
-
-#### PATCH /api/v1/users/:id/activate
-
-Reactivate a deactivated user.
-
----
-
-### Customers Module
-
-#### GET /api/v1/customers/me
-
-Get own customer profile. Requires auth.
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "data": { "id": "uuid", "first_name": "Rahim", "last_name": "Ahmed", "email": "...", "phone": "..." }
-}
-```
-
----
-
-#### GET /api/v1/customers
-
-List all customers (admin/manager only). Supports `?search=rahim&page=1&limit=10`.
-
----
-
-#### GET /api/v1/customers/:id
-
-Get customer by ID.
-
----
-
-#### PATCH /api/v1/customers/:id
-
-Update customer profile.
-
-**Request Body:**
+**Request (any subset):**
 ```json
 { "first_name": "Rahim", "last_name": "Khan", "date_of_birth": "1995-06-15", "gender": "male" }
 ```
 
 ---
 
-#### GET /api/v1/customers/:id/addresses
+#### POST /customers/:id/addresses
 
-Get all addresses for a customer.
-
----
-
-#### POST /api/v1/customers/:id/addresses
-
-Add a new address for a customer.
-
-**Request Body:**
+**Request:**
 ```json
 {
   "label": "home",
-  "address_line1": "123 Main St",
+  "address_line1": "123 Gulshan Ave",
   "city": "Dhaka",
   "state": "Dhaka",
-  "postal_code": "1205",
+  "postal_code": "1212",
   "is_default": true
 }
 ```
 
 **Response (201):**
 ```json
-{ "success": true, "message": "Address added", "data": { "id": 1, "label": "home", "..." } }
+{ "data": { "id": 1, "label": "home", "address_line1": "123 Gulshan Ave", "city": "Dhaka", "is_default": true } }
 ```
-
 
 ---
 
-### Branches Module
+### Branches
 
-#### GET /api/v1/branches
-
-List branches. `?search=dhaka&city=Dhaka&is_active=true&page=1&limit=10`
-
-#### GET /api/v1/branches/:id
-
-Get branch by ID.
-
-#### GET /api/v1/branches/:id/stats
-
-Get branch statistics (employee count, agent count, warehouse count, active parcels).
-
-#### POST /api/v1/branches (admin/manager)
-
-```json
-{ "name": "Dhaka Central", "code": "DHK-01", "city": "Dhaka", "state": "Dhaka", "address": "123 Motijheel" }
-```
-
-#### PATCH /api/v1/branches/:id (admin/manager)
-
-Update branch fields.
-
-#### DELETE /api/v1/branches/:id (admin)
-
-Deactivate branch.
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /branches | Any auth | List branches |
+| GET | /branches/:id | Any auth | Get branch by ID |
+| GET | /branches/:id/stats | Any auth | Branch statistics |
+| POST | /branches | Admin, Manager | Create branch |
+| PATCH | /branches/:id | Admin, Manager | Update branch |
+| DELETE | /branches/:id | Admin | Deactivate branch |
 
 ---
 
-### Warehouses Module
+#### GET /branches
 
-#### GET /api/v1/warehouses
-
-List warehouses. `?search=central&city=Dhaka&branch_id=1&is_active=true&page=1&limit=10`
-
-#### GET /api/v1/warehouses/:id
-
-Get warehouse by ID.
-
-#### GET /api/v1/warehouses/:id/occupancy
-
-Get capacity info.
+**Query Params:** `?search=dhaka&city=Dhaka&is_active=true&page=1&limit=10`
 
 **Response:**
 ```json
-{ "total_capacity": 500, "current_occupancy": 342, "available_space": 158, "occupancy_percentage": "68.40" }
+{
+  "data": [
+    {
+      "id": 1, "name": "Dhaka Central", "code": "DHK-01",
+      "city": "Dhaka", "state": "Dhaka", "address": "...",
+      "is_active": true, "manager_email": "manager@uthao.com"
+    }
+  ]
+}
 ```
 
-#### POST /api/v1/warehouses (admin/manager)
+---
 
+#### GET /branches/:id/stats
+
+**Response:**
 ```json
-{ "name": "Central Warehouse", "code": "WH-DHK-01", "branch_id": 1, "city": "Dhaka", "address": "Tejgaon", "total_capacity": 500 }
+{
+  "data": {
+    "branch": { "id": 1, "name": "Dhaka Central", "code": "DHK-01" },
+    "stats": {
+      "employee_count": "5",
+      "agent_count": "12",
+      "warehouse_count": "2",
+      "active_parcels_origin": "34",
+      "active_parcels_destination": "28"
+    }
+  }
+}
 ```
 
-#### PATCH /api/v1/warehouses/:id (admin/manager)
+---
 
-Update warehouse fields.
+#### POST /branches
 
-#### DELETE /api/v1/warehouses/:id (admin)
+**Request:**
+```json
+{
+  "name": "Dhaka Central",
+  "code": "DHK-01",
+  "city": "Dhaka",
+  "state": "Dhaka",
+  "address": "123 Motijheel Road",
+  "phone": "+88021234567",
+  "email": "dhaka@uthao.com",
+  "manager_id": "uuid",
+  "opening_time": "09:00",
+  "closing_time": "18:00"
+}
+```
 
-Deactivate warehouse.
+---
 
-#### POST /api/v1/warehouses/transfers (admin/manager/employee)
+### Warehouses
 
-Initiate a parcel transfer between warehouses.
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /warehouses | Any auth | List warehouses |
+| GET | /warehouses/:id | Any auth | Get warehouse by ID |
+| GET | /warehouses/:id/occupancy | Any auth | Capacity info |
+| POST | /warehouses | Admin, Manager | Create warehouse |
+| PATCH | /warehouses/:id | Admin, Manager | Update warehouse |
+| DELETE | /warehouses/:id | Admin | Deactivate warehouse |
+| POST | /warehouses/transfers | Admin, Manager, Employee | Initiate transfer |
+| PATCH | /warehouses/transfers/:id/complete | Admin, Manager, Employee | Complete transfer |
 
+---
+
+#### GET /warehouses/:id/occupancy
+
+**Response:**
+```json
+{
+  "data": {
+    "id": 1, "name": "Central Warehouse", "code": "WH-DHK-01",
+    "total_capacity": 500, "current_occupancy": 342,
+    "available_space": 158, "occupancy_percentage": "68.40"
+  }
+}
+```
+
+---
+
+#### POST /warehouses
+
+**Request:**
+```json
+{
+  "name": "Central Warehouse",
+  "code": "WH-DHK-01",
+  "branch_id": 1,
+  "city": "Dhaka",
+  "address": "Industrial Area, Tejgaon",
+  "total_capacity": 500
+}
+```
+
+---
+
+#### POST /warehouses/transfers
+
+**Request:**
 ```json
 { "parcel_id": "uuid", "from_warehouse_id": 1, "to_warehouse_id": 2 }
 ```
 
-#### PATCH /api/v1/warehouses/transfers/:transferId/complete (admin/manager/employee)
+---
 
-Complete a pending transfer. Updates occupancy and parcel location atomically.
+### Reports
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /reports/daily-deliveries | Admin, Manager, Employee | Per-day parcel counts and revenue |
+| GET | /reports/delayed-parcels | Admin, Manager, Employee | Active parcels past estimated delivery date |
+| GET | /reports/warehouse-occupancy | Admin, Manager, Employee | Live capacity snapshot for all warehouses |
+| GET | /reports/delivery-success-rate | Admin, Manager, Employee | Success/failure/cancellation rate breakdown |
+| GET | /reports/avg-delivery-time | Admin, Manager, Employee | Average hours/days from booking to delivery |
+| GET | /reports/monthly-revenue | Admin, Manager | Revenue aggregated by calendar month |
+| GET | /reports/revenue-by-branch | Admin, Manager | Revenue totals per branch |
+| GET | /reports/top-delivery-agents | Admin, Manager | Agents ranked by completions in period |
+| GET | /reports/most-active-branches | Admin, Manager | Branches ranked by parcel volume |
+
+All report endpoints accept `?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`. Defaults to current month when omitted.
+
+---
+
+#### GET /reports/daily-deliveries
+
+Calls stored function `fn_daily_delivery_summary(p_from, p_to)`.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "rows": [
+      {
+        "day": "2024-01-01",
+        "total_booked": "24",
+        "total_delivered": "18",
+        "total_cancelled": "2",
+        "total_failed": "1",
+        "total_in_transit": "3",
+        "revenue": "2810.50"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/delayed-parcels
+
+Queries the `v_delayed_parcels` view. Includes `days_overdue` field.
+
+**Query Params:** `?priority=express&branch_id=1&page=1&limit=20`
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "tracking_number": "DHK-01-20240101-0005",
+      "status": "in_transit",
+      "priority": "express",
+      "estimated_delivery_date": "2024-01-10",
+      "days_overdue": "5",
+      "delivery_city": "Chittagong",
+      "origin_branch_name": "Dhaka Central",
+      "sender_first_name": "Rahim",
+      "sender_email": "rahim@example.com"
+    }
+  ],
+  "meta": { "page": 1, "limit": 20, "totalCount": 7, "totalPages": 1 }
+}
+```
+
+---
+
+#### GET /reports/warehouse-occupancy
+
+Queries the `v_warehouse_occupancy` view.
+
+**Query Params:** `?branch_id=1&city=Dhaka&is_active=true`
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "id": 1, "name": "Central Warehouse", "code": "WH-DHK-01",
+      "city": "Dhaka", "total_capacity": 500, "current_occupancy": 342,
+      "available_space": 158, "occupancy_pct": "68.40",
+      "branch_id": 1, "branch_name": "Dhaka Central", "is_active": true
+    }
+  ]
+}
+```
+
+---
+
+#### GET /reports/delivery-success-rate
+
+Calls `fn_delivery_success_rate(p_from, p_to)` plus breakdowns by priority and branch.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "summary": {
+      "total_parcels": "450", "delivered": "380", "failed": "22",
+      "cancelled": "35", "returned": "8", "in_progress": "5",
+      "success_rate_pct": "84.44", "failure_rate_pct": "4.89"
+    },
+    "by_priority": [
+      { "priority": "express",   "total": "90",  "delivered": "82", "success_rate_pct": "91.11" },
+      { "priority": "overnight", "total": "45",  "delivered": "43", "success_rate_pct": "95.56" },
+      { "priority": "standard",  "total": "315", "delivered": "255","success_rate_pct": "80.95" }
+    ],
+    "by_branch": [
+      { "branch_id": 1, "branch_name": "Dhaka Central", "total": "210", "delivered": "185", "success_rate_pct": "88.10" }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/avg-delivery-time
+
+Calls `fn_avg_delivery_time(p_from, p_to)` plus breakdown by priority tier.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "overall": {
+      "avg_hours": "28.50", "avg_days": "1.19",
+      "min_hours": "4.20", "max_hours": "96.80", "total_measured": "380"
+    },
+    "by_priority": [
+      { "priority": "overnight", "total_delivered": "43", "avg_hours": "9.80",  "avg_days": "0.41" },
+      { "priority": "express",   "total_delivered": "82", "avg_hours": "18.40", "avg_days": "0.77" },
+      { "priority": "standard",  "total_delivered": "255","avg_hours": "34.20", "avg_days": "1.43" }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/monthly-revenue
+
+Calls `fn_monthly_revenue(p_from, p_to)`. Groups completed payments by calendar month.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-03-31" },
+    "rows": [
+      { "month": "2024-01-01", "total_revenue": "47500.00", "total_payments": "312", "avg_payment": "152.24", "total_refunded": "1200.00" },
+      { "month": "2024-02-01", "total_revenue": "51200.00", "total_payments": "341", "avg_payment": "150.15", "total_refunded": "800.00" },
+      { "month": "2024-03-01", "total_revenue": "55800.00", "total_payments": "376", "avg_payment": "148.40", "total_refunded": "600.00" }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/revenue-by-branch
+
+Calls `fn_revenue_by_branch(p_from, p_to)`.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "rows": [
+      {
+        "branch_id": 1, "branch_name": "Dhaka Central", "branch_code": "DHK-01", "city": "Dhaka",
+        "total_revenue": "28500.00", "payment_count": "187",
+        "avg_payment": "152.41", "total_refunded": "800.00", "net_revenue": "27700.00"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/top-delivery-agents
+
+**Query Params:** `?date_from=2024-01-01&date_to=2024-01-31&limit=10`
+
+Calls `fn_top_delivery_agents(p_from, p_to, p_limit)`.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "rows": [
+      {
+        "agent_id": "uuid", "first_name": "Rahim", "last_name": "Ahmed",
+        "branch_name": "Dhaka Central", "vehicle_type": "motorcycle",
+        "rating": "4.80", "total_deliveries_all": 245,
+        "completed_in_period": "38", "failed_in_period": "2",
+        "success_rate_pct": "95.00"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /reports/most-active-branches
+
+**Query Params:** `?date_from=2024-01-01&date_to=2024-01-31&limit=10`
+
+Calls `fn_most_active_branches(p_from, p_to, p_limit)`.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "rows": [
+      {
+        "branch_id": 1, "branch_name": "Dhaka Central", "branch_code": "DHK-01", "city": "Dhaka",
+        "total_parcels": "210", "delivered": "185", "cancelled": "12", "in_progress": "13",
+        "total_revenue": "28500.00", "employee_count": "5", "agent_count": "12"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Payments
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /payments/methods | None | List active payment methods |
+| GET | /payments/revenue | Admin, Manager | Revenue summary with daily & method breakdown |
+| GET | /payments/my | Customer | Own payment history |
+| GET | /payments/invoices/my | Customer | Own invoices |
+| GET | /payments/invoices | Admin, Manager, Employee | List all invoices |
+| GET | /payments/invoices/:id | Admin, Manager, Employee | Get invoice by ID |
+| GET | /payments/parcels/:parcelId | Admin, Manager, Employee | All payments for a parcel |
+| GET | /payments | Admin, Manager, Employee | List all payments with filters |
+| POST | /payments | Customer, Admin, Manager, Employee | Create a payment |
+| GET | /payments/:id | Any auth | Get payment by ID |
+| GET | /payments/:paymentId/invoice | Any auth | Get invoice for a payment |
+| PATCH | /payments/:id/verify | Admin, Manager, Employee | Verify / confirm a payment |
+| PATCH | /payments/:id/refund | Admin, Manager | Refund a completed payment |
+| PATCH | /payments/:id/fail | Admin, Manager, Employee | Mark payment as failed |
+
+---
+
+#### POST /payments
+
+Creates a payment record for a parcel. The amount is always taken from `parcel.delivery_cost` — the client cannot supply or override it.
+
+**Request:**
+```json
+{
+  "parcel_id": "uuid",
+  "payment_method_id": 2,
+  "transaction_id": "BKH-20240115-XXXXX",
+  "notes": "bKash payment"
+}
+```
+
+Staff must also include `"customer_id": "uuid"` when creating on behalf of a customer (COD collection).
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "message": "Payment created",
+  "data": {
+    "id": "uuid",
+    "parcel_id": "uuid",
+    "customer_id": "uuid",
+    "amount": "117.50",
+    "status": "pending",
+    "transaction_id": null,
+    "paid_at": null,
+    "created_at": "2024-01-15T10:00:00.000Z"
+  }
+}
+```
+
+**Errors:** 400 (invalid method, wrong parcel status), 403 (own parcels only for customers), 404 (parcel/customer not found), 409 (already paid or payment exists)
+
+---
+
+#### PATCH /payments/:id/verify
+
+Confirms a pending payment as received. Internally runs `UPDATE payments SET status = 'completed'`. The PostgreSQL trigger `fn_on_payment_completed` then:
+1. Stamps `paid_at = NOW()`
+2. Sets `parcels.is_paid = true`
+3. Auto-generates an invoice with 5% VAT
+
+**Request (optional):**
+```json
+{ "transaction_id": "BKH-20240115-XXXXX" }
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Payment verified successfully",
+  "data": { "id": "uuid", "status": "completed", "paid_at": "2024-01-15T10:05:00.000Z" }
+}
+```
+
+---
+
+#### PATCH /payments/:id/refund
+
+Refunds a completed payment. The trigger reverses `parcels.is_paid = false` and cancels the linked invoice.
+
+**Request:**
+```json
+{ "notes": "Customer returned parcel — COD not applicable" }
+```
+
+---
+
+#### GET /payments/revenue
+
+**Query Params:** `?date_from=2024-01-01&date_to=2024-01-31` (defaults to current month)
+
+Calls the PostgreSQL stored function `get_revenue_summary(p_from, p_to)`.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "period": { "from": "2024-01-01", "to": "2024-01-31" },
+    "summary": {
+      "total_revenue": "47500.00",
+      "total_payments": "312",
+      "avg_payment": "152.24",
+      "total_refunded": "1200.00",
+      "net_revenue": "46300.00"
+    },
+    "by_day": [
+      { "date": "2024-01-01", "payment_count": "18", "revenue": "2810.50" }
+    ],
+    "by_method": [
+      { "payment_method": "bkash", "payment_count": "145", "revenue": "22350.00" },
+      { "payment_method": "cash",  "payment_count": "98",  "revenue": "15200.00" }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /payments/:paymentId/invoice
+
+Returns the auto-generated invoice for a payment. The invoice is created by the DB trigger when a payment is verified.
+
+**Response (200):**
+```json
+{
+  "data": {
+    "id": 1,
+    "invoice_number": "INV-20240115-A1B2C3D4",
+    "payment_id": "uuid",
+    "customer_id": "uuid",
+    "amount": "117.50",
+    "tax_amount": "5.88",
+    "total_amount": "123.38",
+    "status": "paid",
+    "issued_at": "2024-01-15T10:05:00.000Z",
+    "due_date": "2024-02-14"
+  }
+}
+```
+
+---
+
+### Deliveries (Assignment Management)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /deliveries | Admin, Manager, Employee | List all assignments with filters |
+| POST | /deliveries | Admin, Manager, Employee | Assign agent to a parcel |
+| GET | /deliveries/my | Delivery Agent | Agent's own assignment queue |
+| GET | /deliveries/parcels/:parcelId | Admin, Manager, Employee | All assignments for a parcel |
+| GET | /deliveries/agents/:agentId | Admin, Manager | All assignments for an agent |
+| GET | /deliveries/:id | Admin, Manager, Employee, Agent | Get single assignment |
+| POST | /deliveries/:id/reassign | Admin, Manager, Employee | Reassign to different agent |
+| PATCH | /deliveries/:id/start | Delivery Agent | Mark assignment as in_progress |
+| PATCH | /deliveries/:id/complete | Admin, Manager, Employee, Agent | Mark assignment as completed |
+| PATCH | /deliveries/:id/fail | Admin, Manager, Employee, Agent | Mark assignment as failed |
+| PATCH | /deliveries/:id/notes | Admin, Manager, Employee, Agent | Update delivery notes |
+
+---
+
+#### POST /deliveries
+
+**Request:**
+```json
+{
+  "parcel_id": "uuid",
+  "agent_id": "uuid",
+  "assignment_type": "pickup",
+  "notes": "Call before arriving"
+}
+```
+
+`assignment_type` must be `pickup` or `delivery`.
+
+- `pickup` → parcel must be in `booked` status
+- `delivery` → parcel must be in `in_transit`, `at_warehouse`, or `out_for_delivery`
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "message": "Agent assigned successfully",
+  "data": {
+    "id": 1,
+    "parcel_id": "uuid",
+    "agent_id": "uuid",
+    "assignment_type": "pickup",
+    "status": "assigned",
+    "assigned_at": "2024-01-15T10:00:00.000Z",
+    "notes": "Call before arriving",
+    "assigned_by": "uuid"
+  }
+}
+```
+
+**Errors:** 400 (wrong parcel status, agent at capacity, agent unavailable), 404 (parcel/agent not found), 409 (duplicate active assignment)
+
+---
+
+#### POST /deliveries/:id/reassign
+
+**Request:**
+```json
+{
+  "agent_id": "new-agent-uuid",
+  "notes": "Original agent sick, reassigning"
+}
+```
+
+The existing assignment must have `status = 'assigned'`. It will be marked `reassigned` and a new `assigned` record is created.
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "message": "Agent reassigned successfully",
+  "data": {
+    "id": 2,
+    "parcel_id": "uuid",
+    "agent_id": "new-agent-uuid",
+    "assignment_type": "pickup",
+    "status": "assigned",
+    "assigned_at": "2024-01-15T11:00:00.000Z"
+  }
+}
+```
+
+---
+
+#### PATCH /deliveries/:id/start
+
+Agent-only. Moves the assignment from `assigned` → `in_progress`. Only the assigned agent can call this.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Assignment started",
+  "data": { "id": 1, "status": "in_progress", "..." }
+}
+```
+
+---
+
+#### PATCH /deliveries/:id/complete
+
+**Request (optional):**
+```json
+{ "notes": "Delivered to front desk" }
+```
+
+Moves assignment to `completed` and increments the agent's `total_deliveries` counter atomically. Agents can complete their own; staff can complete any.
+
+---
+
+#### PATCH /deliveries/:id/fail
+
+**Request (optional):**
+```json
+{ "notes": "Address not found, recipient unreachable" }
+```
+
+Moves assignment to `failed`. Use `PATCH /parcels/:id/status` separately to update the parcel status to `failed`.
+
+---
+
+#### PATCH /deliveries/:id/notes
+
+**Request:**
+```json
+{ "notes": "Recipient requested evening delivery" }
+```
+
+---
+
+#### GET /deliveries
+
+**Query Params:** `?status=assigned&assignment_type=pickup&agent_id=uuid&parcel_id=uuid&page=1&limit=10`
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "parcel_id": "uuid",
+      "tracking_number": "DHK-01-20240115-0001",
+      "parcel_status": "booked",
+      "receiver_name": "Karim Khan",
+      "delivery_city": "Dhaka",
+      "priority": "standard",
+      "agent_id": "uuid",
+      "agent_first_name": "Rahim",
+      "agent_last_name": "Ahmed",
+      "agent_email": "rahim@uthao.com",
+      "vehicle_type": "motorcycle",
+      "assignment_type": "pickup",
+      "status": "assigned",
+      "assigned_at": "2024-01-15T10:00:00.000Z",
+      "notes": null
+    }
+  ],
+  "meta": { "page": 1, "limit": 10, "totalCount": 5, "totalPages": 1 }
+}
+```
+
+---
+
+#### GET /deliveries/my
+
+**Query Params:** `?status=assigned&page=1&limit=10`
+
+Returns the authenticated delivery agent's own assignment list.
+
+---
+
+#### GET /deliveries/parcels/:parcelId
+
+Returns the full assignment history for a parcel (all records including reassigned/completed).
+
+**Response (200):**
+```json
+{
+  "data": {
+    "parcel": { "id": "uuid", "tracking_number": "DHK-01-20240115-0001", "status": "picked_up" },
+    "assignments": [
+      { "id": 1, "assignment_type": "pickup", "status": "completed", "agent_first_name": "Rahim", "..." },
+      { "id": 2, "assignment_type": "delivery", "status": "assigned", "agent_first_name": "Karim", "..." }
+    ]
+  }
+}
+```
+
+---
+
+### Parcels
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /parcels/track/:trackingNumber | None | Public parcel tracking |
+| GET | /parcels/categories | None | List parcel categories with pricing |
+| GET | /parcels/my | Customer | Customer's own parcels |
+| GET | /parcels | Admin, Manager, Employee | All parcels with filters |
+| POST | /parcels | Customer | Book a parcel |
+| GET | /parcels/:id | Any auth | Full parcel detail |
+| GET | /parcels/:id/tracking | Any auth | Full status timeline |
+| PATCH | /parcels/:id | Any auth | Update parcel info |
+| PATCH | /parcels/:id/status | Admin, Manager, Employee, Agent | Update status |
+| PATCH | /parcels/:id/cancel | Any auth | Cancel parcel |
+
+---
+
+#### GET /parcels/track/:trackingNumber (Public)
+
+**Example:** `GET /parcels/track/DHK-01-20240115-0001`
+
+**Response:**
+```json
+{
+  "data": {
+    "parcel": {
+      "tracking_number": "DHK-01-20240115-0001",
+      "receiver_name": "Karim Khan",
+      "status": "in_transit",
+      "delivery_city": "Chittagong",
+      "estimated_delivery_date": "2024-01-17"
+    },
+    "history": [
+      { "status": "booked", "location": "Dhaka Central", "notes": "Parcel booking confirmed", "created_at": "..." },
+      { "status": "picked_up", "location": "Gulshan, Dhaka", "created_at": "..." },
+      { "status": "in_transit", "location": "Dhaka Warehouse", "created_at": "..." }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /parcels/categories (Public)
+
+**Response:**
+```json
+{
+  "data": [
+    { "id": 1, "name": "document", "description": "Documents and papers", "base_price": "50.00", "price_per_kg": "10.00" },
+    { "id": 2, "name": "small_package", "base_price": "80.00", "price_per_kg": "25.00" }
+  ]
+}
+```
+
+---
+
+#### GET /parcels/my
+
+**Query Params:** `?status=in_transit&page=1&limit=10`
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid", "tracking_number": "DHK-01-20240115-0001",
+      "receiver_name": "Karim Khan", "delivery_city": "Chittagong",
+      "status": "in_transit", "delivery_cost": "117.50",
+      "payment_method": "prepaid", "is_paid": false,
+      "category_name": "small_package", "created_at": "..."
+    }
+  ],
+  "meta": { "page": 1, "limit": 10, "totalCount": 3 }
+}
+```
+
+---
+
+#### GET /parcels (Admin/Manager/Employee)
+
+**Query Params:** `?status=booked&priority=express&city=Dhaka&customer_id=uuid&search=01712&date_from=2024-01-01&date_to=2024-01-31&page=1&limit=10`
+
+---
+
+#### POST /parcels
+
+**Request:**
+```json
+{
+  "receiver_name": "Karim Khan",
+  "receiver_phone": "+8801812345678",
+  "receiver_email": "karim@example.com",
+  "delivery_address_line1": "456 Mirpur Road",
+  "delivery_city": "Dhaka",
+  "delivery_state": "Dhaka",
+  "delivery_postal_code": "1216",
+  "category_id": 2,
+  "weight_kg": 1.5,
+  "priority": "standard",
+  "payment_method": "prepaid",
+  "origin_branch_id": 1,
+  "destination_branch_id": 2,
+  "is_fragile": false,
+  "description": "Books and stationery"
+}
+```
+
+**Response (201):**
+```json
+{
+  "data": {
+    "id": "uuid",
+    "tracking_number": "DHK-01-20240115-0001",
+    "status": "booked",
+    "delivery_cost": 117.50,
+    "priority": "standard",
+    "payment_method": "prepaid"
+  }
+}
+```
+
+**Cost formula:** `(base_price + price_per_kg × weight_kg) × priority_multiplier`
+
+Priority multipliers: standard=1.0x, express=1.5x, overnight=2.0x
+
+---
+
+#### PATCH /parcels/:id/status
+
+Customers cannot call this. Staff and agents only.
+
+**Valid transitions:**
+- `booked` → picked_up, cancelled
+- `picked_up` → in_transit, cancelled, failed
+- `in_transit` → at_warehouse, out_for_delivery, failed
+- `at_warehouse` → in_transit, out_for_delivery
+- `out_for_delivery` → delivered, failed, returned
+- `failed` → out_for_delivery, returned
+
+**Request:**
+```json
+{ "status": "picked_up", "location": "Gulshan, Dhaka", "notes": "Picked up from sender" }
+```
+
+---
+
+#### PATCH /parcels/:id/cancel
+
+Customers can cancel their own parcels in `booked` or `picked_up` status only.
+
+**Request:**
+```json
+{ "reason": "Customer requested cancellation" }
+```

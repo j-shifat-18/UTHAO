@@ -6,10 +6,16 @@ import Register from './pages/auth/Register.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Profile from './pages/customer/Profile.jsx'
 import Addresses from './pages/customer/Addresses.jsx'
+import CreateParcel from './pages/customer/CreateParcel.jsx'
+import MyParcels from './pages/customer/MyParcels.jsx'
 import Users from './pages/admin/Users.jsx'
 import Customers from './pages/admin/Customers.jsx'
+import Branches from './pages/admin/Branches.jsx'
+import Warehouses from './pages/admin/Warehouses.jsx'
+import AdminParcels from './pages/admin/Parcels.jsx'
 import NotFound from './pages/NotFound.jsx'
 import LandingPage from './pages/LandingPage.jsx'
+import AboutPage from './pages/AboutPage.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 
 import DeliveryTracking from './pages/delivery/DeliveryTracking.jsx'
@@ -23,6 +29,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/about" element={<AboutPage />} />
       
       <Route
         path="/login"
@@ -52,6 +59,13 @@ export default function App() {
           element={
             <ProtectedRoute adminOnly>
               <DeliveryManagement />
+        <Route path="book-parcel" element={<CreateParcel />} />
+        <Route path="my-parcels" element={<MyParcels />} />
+        <Route
+          path="admin/parcels"
+          element={
+            <ProtectedRoute adminOnly>
+              <AdminParcels />
             </ProtectedRoute>
           }
         />
@@ -68,6 +82,22 @@ export default function App() {
           element={
             <ProtectedRoute adminOnly>
               <Customers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/branches"
+          element={
+            <ProtectedRoute adminOnly>
+              <Branches />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/warehouses"
+          element={
+            <ProtectedRoute adminOnly>
+              <Warehouses />
             </ProtectedRoute>
           }
         />

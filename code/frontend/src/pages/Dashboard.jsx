@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
 import { Package, CheckCircle, UserCircle, MapPin, Users, UsersRound, Truck, Search, PlusCircle } from 'lucide-react'
+import { Package, CheckCircle, UserCircle, MapPin, Users, UsersRound, PlusCircle, PackageCheck, Boxes } from 'lucide-react'
 
 const StatCard = ({ label, value, accent }) => (
   <motion.div
@@ -55,9 +56,11 @@ export default function Dashboard() {
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 capitalize">
               {user?.role}
             </span>
-            <span className="font-mono text-xs text-gray-400 border border-dashed border-gray-300 rounded px-2 py-0.5">
-              ACC-{user?.id}
-            </span>
+            {user?.is_active && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                Active
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-500">{user?.email}</p>
         </div>
@@ -96,8 +99,11 @@ export default function Dashboard() {
           <QuickLink to="/dashboard/delivery/track" icon={Search}>Track Parcel</QuickLink>
           <QuickLink to="/dashboard/delivery/book" icon={PlusCircle}>Book Delivery</QuickLink>
           <QuickLink to="/dashboard/delivery/agent" icon={Truck}>Rider Portal</QuickLink>
+          {!isAdminLike && <QuickLink to="/dashboard/book-parcel" icon={PlusCircle}>Book new parcel</QuickLink>}
+          {!isAdminLike && <QuickLink to="/dashboard/my-parcels" icon={PackageCheck}>My parcels</QuickLink>}
           <QuickLink to="/dashboard/profile" icon={UserCircle}>Update profile</QuickLink>
           <QuickLink to="/dashboard/addresses" icon={MapPin}>Manage addresses</QuickLink>
+          {isAdminLike && <QuickLink to="/dashboard/admin/parcels" icon={Boxes}>Manage all parcels</QuickLink>}
           {isAdminLike && <QuickLink to="/dashboard/admin/users" icon={Users}>Manage users</QuickLink>}
           {isAdminLike && <QuickLink to="/dashboard/admin/customers" icon={UsersRound}>View customers</QuickLink>}
         </div>

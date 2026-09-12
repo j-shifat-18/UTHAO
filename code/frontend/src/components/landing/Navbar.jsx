@@ -27,7 +27,7 @@ export default function Navbar() {
           <a href="#services" className="text-gray-700 font-medium text-sm hover:text-red-600 transition-colors">Services</a>
           <a href="#coverage" className="text-gray-700 font-medium text-sm hover:text-red-600 transition-colors">Coverage</a>
           <a href="#tracking" className="text-gray-700 font-medium text-sm hover:text-red-600 transition-colors">Track Parcel</a>
-          <a href="#about" className="text-gray-700 font-medium text-sm hover:text-red-600 transition-colors">About</a>
+          <Link to="/about" className="text-gray-700 font-medium text-sm hover:text-red-600 transition-colors">About</Link>
         </div>
 
         {/* CTA buttons */}
@@ -44,7 +44,7 @@ export default function Navbar() {
               >
                 <Link
                   to="/dashboard"
-                  className="px-4 py-2 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-lg hover:border-gray-900 hover:bg-gray-900 hover:text-white transition-all"
+                  className="px-4 py-2 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-lg hover:border-red-600 hover:bg-red-600 hover:text-white transition-all"
                 >
                   Dashboard
                 </Link>
@@ -68,7 +68,7 @@ export default function Navbar() {
               >
                 <Link
                   to="/login"
-                  className="px-4 py-2 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-lg hover:border-gray-900 hover:bg-gray-900 hover:text-white transition-all"
+                  className="px-4 py-2 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-lg hover:border-red-600 hover:bg-red-600 hover:text-white transition-all"
                 >
                   Login
                 </Link>
