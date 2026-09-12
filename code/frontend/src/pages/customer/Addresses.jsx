@@ -43,7 +43,8 @@ export default function Addresses() {
         }
       } catch (err) {
         if (!active) return
-        if (err.message?.includes('postgres') || err.message?.includes('ENOTFOUND')) {
+        const msg = String(err.message || '').toLowerCase()
+        if (msg.includes('postgres') || msg.includes('enotfound') || msg.includes('network') || msg.includes('fetch') || err.code === 'ERR_NETWORK') {
           setCustomerId('cust-local')
           const cached = JSON.parse(localStorage.getItem('uthao_offline_addresses') || '[]')
           setAddresses(cached)
@@ -76,7 +77,8 @@ export default function Addresses() {
       setForm(emptyForm)
       setShowForm(false)
     } catch (err) {
-      if (err.message?.includes('postgres') || err.message?.includes('ENOTFOUND')) {
+      const msg = String(err.message || '').toLowerCase()
+      if (msg.includes('postgres') || msg.includes('enotfound') || msg.includes('network') || msg.includes('fetch') || err.code === 'ERR_NETWORK') {
         const newAddr = { id: `addr-${Date.now()}`, ...form }
         const updated = [newAddr, ...addresses]
         setAddresses(updated)

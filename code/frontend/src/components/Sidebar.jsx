@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import {
   Package, LayoutDashboard, User, MapPin, Users, UsersRound,
   Building2, Warehouse, PlusCircle, PackageCheck, Boxes, LogOut, X, Menu,
-  Truck, Navigation, Search, BarChart3,
+  Truck, Navigation, Search, BarChart3, CreditCard,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -67,6 +67,7 @@ function SidebarContent({ onNavClick }) {
             <div className="flex flex-col gap-1">
               <NavItem to="/dashboard/book-parcel" icon={PlusCircle} onClick={onNavClick}>Book Parcel</NavItem>
               <NavItem to="/dashboard/my-parcels" icon={PackageCheck} onClick={onNavClick}>My Parcels</NavItem>
+              <NavItem to="/dashboard/my-payments" icon={CreditCard} onClick={onNavClick}>My Payments</NavItem>
             </div>
           </nav>
         )}
@@ -111,6 +112,7 @@ function SidebarContent({ onNavClick }) {
             <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Administration</p>
             <div className="flex flex-col gap-1">
               <NavItem to="/dashboard/admin/parcels" icon={Boxes} onClick={onNavClick}>All Parcels</NavItem>
+              <NavItem to="/dashboard/admin/payments" icon={CreditCard} onClick={onNavClick}>Payments</NavItem>
               <NavItem to="/dashboard/admin/users" icon={Users} onClick={onNavClick}>Users</NavItem>
               <NavItem to="/dashboard/admin/customers" icon={UsersRound} onClick={onNavClick}>Customers</NavItem>
               <NavItem to="/dashboard/admin/branches" icon={Building2} onClick={onNavClick}>Branches</NavItem>
