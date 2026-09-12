@@ -25,8 +25,7 @@ const connectDB = async () => {
     client.release();
     logger.info(`Database connected at ${result.rows[0].now}`);
   } catch (err) {
-    logger.fatal({ err }, 'Failed to connect to database');
-    process.exit(1);
+    logger.warn({ err: err.message }, 'Database connection failed - continuing without database connection');
   }
 };
 

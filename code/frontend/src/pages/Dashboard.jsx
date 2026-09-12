@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
-import { Package, CheckCircle, UserCircle, MapPin, Users, UsersRound } from 'lucide-react'
+import { Package, CheckCircle, UserCircle, MapPin, Users, UsersRound, Truck, Search, PlusCircle } from 'lucide-react'
 
 const StatCard = ({ label, value, accent }) => (
   <motion.div
@@ -93,6 +93,9 @@ export default function Dashboard() {
       >
         <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick links</h3>
         <div className="flex flex-wrap gap-3">
+          <QuickLink to="/dashboard/delivery/track" icon={Search}>Track Parcel</QuickLink>
+          <QuickLink to="/dashboard/delivery/book" icon={PlusCircle}>Book Delivery</QuickLink>
+          <QuickLink to="/dashboard/delivery/agent" icon={Truck}>Rider Portal</QuickLink>
           <QuickLink to="/dashboard/profile" icon={UserCircle}>Update profile</QuickLink>
           <QuickLink to="/dashboard/addresses" icon={MapPin}>Manage addresses</QuickLink>
           {isAdminLike && <QuickLink to="/dashboard/admin/users" icon={Users}>Manage users</QuickLink>}

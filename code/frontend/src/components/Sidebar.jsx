@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
-import { Package, LayoutDashboard, User, MapPin, Users, UsersRound, LogOut } from 'lucide-react'
+import { Package, LayoutDashboard, User, MapPin, Users, UsersRound, LogOut, Truck, Navigation, PlusCircle, Search } from 'lucide-react'
 
 const NavItem = ({ to, end, icon: Icon, children }) => (
   <NavLink
@@ -60,6 +60,19 @@ export default function Sidebar() {
         <div className="flex flex-col gap-1">
           <NavItem to="/dashboard/profile" icon={User}>Profile</NavItem>
           <NavItem to="/dashboard/addresses" icon={MapPin}>Addresses</NavItem>
+        </div>
+      </nav>
+
+      {/* Delivery Module */}
+      <nav className="mb-6">
+        <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Delivery Module</p>
+        <div className="flex flex-col gap-1">
+          <NavItem to="/dashboard/delivery/track" icon={Search}>Track Parcel</NavItem>
+          <NavItem to="/dashboard/delivery/book" icon={PlusCircle}>Book Delivery</NavItem>
+          <NavItem to="/dashboard/delivery/agent" icon={Truck}>Rider Portal</NavItem>
+          {isAdminLike && (
+            <NavItem to="/dashboard/delivery/manage" icon={Navigation}>Fleet Operations</NavItem>
+          )}
         </div>
       </nav>
 
