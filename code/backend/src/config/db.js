@@ -4,7 +4,10 @@ const logger = require('./logger');
 
 const pool = new Pool({
   connectionString: env.db.url,
-  max: 20,
+  // Vercel serverless: each function invocation has its own process.
+  // A high max causes connection exhaustion on Supabase's pooler.
+  // 2 connections per invocation is safe and sufficient.
+  max: process.env.VERCEL ? 2 : 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
