@@ -26,7 +26,7 @@ const NavItem = ({ to, end, icon: Icon, children, onClick }) => (
 )
 
 function SidebarContent({ onNavClick }) {
-  const { user, logout, isAdminLike, isStaff } = useAuth()
+  const { user, logout, isAdminLike, isStaff, isAgent } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
