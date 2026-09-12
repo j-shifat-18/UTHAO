@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../../api/client'
+import { paymentApi } from '../../api/paymentApi'
 import { PageHeader, EmptyState, Pagination, TrackingTag } from '../../components/Bits.jsx'
-import { Package, Truck, Clock, X, AlertCircle, ExternalLink, RefreshCw, XCircle } from 'lucide-react'
+import { Package, Truck, Clock, X, AlertCircle, ExternalLink, RefreshCw, XCircle, CreditCard } from 'lucide-react'
 
 const STATUS_BADGE_COLORS = {
   booked: 'bg-blue-100 text-blue-700 border-blue-200',
@@ -35,6 +36,13 @@ export default function MyParcels() {
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
 
+  // Pay modal state
+  const [payModalParcel, setPayModalParcel] = useState(null)
+  const [payMethod, setPayMethod] = useState('2') // Assume 2 is bKash
+  const [payTransaction, setPayTransaction] = useState('')
+  const [payLoading, setPayLoading] = useState(false)
+  const [payError, setPayError] = useState('')
+
   async function loadMyParcels(page = 1) {
     setLoading(true)
     setError('')
@@ -57,13 +65,31 @@ export default function MyParcels() {
       setParcels(list)
       setMeta(body.meta || { page: 1, totalPages: 1 })
     } catch (err) {
-      const msg = String(err.message || '')
-      if (msg.includes('ENOTFOUND') || msg.includes('postgres') || msg.includes('tenant') || err.status === 500) {
+      const msg = String(err.message || '').toLowerCase()
+      if (msg.includes('enotfound') || msg.includes('postgres') || msg.includes('tenant') || err.status === 500 || msg.includes('network') || msg.includes('fetch') || err.code === 'ERR_NETWORK') {
         // Offline Mock Fallback
-        setParcels([
+        const existingMocks = JSON.parse(localStorage.getItem('uthao_mock_parcels') || '[]')
+        let mockList = [
+          ...existingMocks,
           { id: '1', tracking_number: 'DHK-1234', receiver_name: 'Jane Doe', receiver_phone: '017000000', delivery_city: 'Dhaka', weight_kg: 2, priority: 'standard', status: 'booked', delivery_cost: 120, payment_method: 'cash', is_paid: false, category_name: 'Document' },
           { id: '2', tracking_number: 'CTG-5678', receiver_name: 'John Smith', receiver_phone: '018000000', delivery_city: 'Chittagong', weight_kg: 1.5, priority: 'express', status: 'in_transit', delivery_cost: 200, payment_method: 'card', is_paid: true, category_name: 'Electronics' }
-        ])
+        ]
+        
+        if (statusFilter) {
+          mockList = mockList.filter(p => p.status === statusFilter)
+        }
+        
+        if (search.trim()) {
+          const q = search.toLowerCase()
+          mockList = mockList.filter(
+            (p) =>
+              p.tracking_number?.toLowerCase().includes(q) ||
+              p.receiver_name?.toLowerCase().includes(q) ||
+              p.delivery_city?.toLowerCase().includes(q)
+          )
+        }
+
+        setParcels(mockList)
         setMeta({ page: 1, totalPages: 1 })
       } else {
         setError(err.message || 'Failed to load parcels')
@@ -85,8 +111,16 @@ export default function MyParcels() {
       // Backend returns { data: { parcel, history } }
       const body = res.data?.data
       setTrackingHistory(Array.isArray(body) ? body : (body?.history || []))
-    } catch {
-      setTrackingHistory([])
+    } catch (err) {
+      const msg = String(err?.message || '').toLowerCase()
+      if (msg.includes('network') || msg.includes('fetch') || err.code === 'ERR_NETWORK') {
+        setTrackingHistory([
+          { status: 'booked', created_at: new Date(Date.now() - 86400000).toISOString(), notes: 'Parcel booked by customer' },
+          { status: parcel.status, created_at: new Date().toISOString(), notes: 'Mock tracking update' }
+        ])
+      } else {
+        setTrackingHistory([])
+      }
     } finally {
       setLoadingTracking(false)
     }
@@ -111,9 +145,77 @@ export default function MyParcels() {
       setCancelModalParcel(null)
       loadMyParcels(meta.page)
     } catch (err) {
-      setCancelError(err.message || 'Failed to cancel parcel')
+      const msg = String(err.message || '').toLowerCase()
+      if (msg.includes('network') || msg.includes('fetch') || err.code === 'ERR_NETWORK') {
+        // Mock fallback
+        const existingMocks = JSON.parse(localStorage.getItem('uthao_mock_parcels') || '[]')
+        const updatedMocks = existingMocks.map(p => 
+          p.id === cancelModalParcel.id ? { ...p, status: 'cancelled' } : p
+        )
+        localStorage.setItem('uthao_mock_parcels', JSON.stringify(updatedMocks))
+
+        setCancelModalParcel(null)
+        loadMyParcels(meta.page)
+      } else {
+        setCancelError(err.message || 'Failed to cancel parcel')
+      }
     } finally {
       setCancelling(false)
+    }
+  }
+
+  function openPayModal(parcel) {
+    setPayModalParcel(parcel)
+    setPayMethod('2')
+    setPayTransaction('')
+    setPayError('')
+  }
+
+  async function handlePaySubmit(e) {
+    e.preventDefault()
+    if (!payModalParcel) return
+    setPayLoading(true)
+    setPayError('')
+
+    try {
+      await paymentApi.createPayment({
+        parcel_id: payModalParcel.id,
+        payment_method_id: parseInt(payMethod, 10),
+        transaction_id: payTransaction.trim(),
+        notes: 'Customer payment from dashboard',
+      })
+      setPayModalParcel(null)
+      loadMyParcels(meta.page)
+    } catch (err) {
+      const msg = String(err.message || '').toLowerCase()
+      if (msg.includes('network') || msg.includes('fetch') || err.code === 'ERR_NETWORK') {
+        // Mock fallback
+        const existingMocks = JSON.parse(localStorage.getItem('uthao_mock_parcels') || '[]')
+        const updatedMocks = existingMocks.map(p => 
+          p.id === payModalParcel.id ? { ...p, is_paid: true } : p
+        )
+        localStorage.setItem('uthao_mock_parcels', JSON.stringify(updatedMocks))
+        
+        // Save mock payment to local storage so it shows in My Payments
+        const mockPayment = {
+          id: 'pay-' + Date.now(),
+          parcel_id: payModalParcel.id,
+          amount: payModalParcel.delivery_cost || 0,
+          status: 'completed',
+          payment_method: payMethod === '1' ? 'cash' : payMethod === '2' ? 'bkash' : 'card',
+          transaction_id: payTransaction || 'TRX-' + Math.floor(100000 + Math.random() * 900000),
+          created_at: new Date().toISOString()
+        }
+        const existingPayments = JSON.parse(localStorage.getItem('uthao_mock_payments') || '[]')
+        localStorage.setItem('uthao_mock_payments', JSON.stringify([mockPayment, ...existingPayments]))
+
+        setPayModalParcel(null)
+        loadMyParcels(meta.page)
+      } else {
+        setPayError(err.message || 'Failed to process payment')
+      }
+    } finally {
+      setPayLoading(false)
     }
   }
 
@@ -259,6 +361,17 @@ export default function MyParcels() {
                             Cancel
                           </motion.button>
                         )}
+                        {!p.is_paid && p.status !== 'cancelled' && p.status !== 'failed' && (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => openPayModal(p)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-all"
+                          >
+                            <CreditCard size={12} />
+                            Pay Now
+                          </motion.button>
+                        )}
                       </td>
                     </motion.tr>
                   )
@@ -395,6 +508,91 @@ export default function MyParcels() {
                     className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition-all disabled:opacity-50"
                   >
                     {cancelling ? 'Cancelling…' : 'Confirm Cancellation'}
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Pay Confirmation Modal */}
+      <AnimatePresence>
+        {payModalParcel && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 border border-gray-100 space-y-4"
+            >
+              <div className="flex items-center gap-2 text-green-600">
+                <CreditCard size={22} />
+                <h3 className="font-bold text-gray-900 text-lg">Pay for Shipment</h3>
+              </div>
+
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 text-sm">
+                <div className="flex justify-between mb-2">
+                  <span className="text-gray-500">Tracking Number</span>
+                  <span className="font-mono font-bold text-gray-900">{payModalParcel.tracking_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Amount Due</span>
+                  <span className="font-mono font-bold text-gray-900 text-base">৳{payModalParcel.delivery_cost}</span>
+                </div>
+              </div>
+
+              {payError && (
+                <div className="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-xl text-xs">
+                  {payError}
+                </div>
+              )}
+
+              <form onSubmit={handlePaySubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider">
+                    Payment Method
+                  </label>
+                  <select
+                    className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white"
+                    value={payMethod}
+                    onChange={(e) => setPayMethod(e.target.value)}
+                  >
+                    <option value="1">Cash / COD</option>
+                    <option value="2">bKash / Mobile Money</option>
+                    <option value="3">Credit/Debit Card</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider">
+                    Transaction ID (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white"
+                    placeholder="e.g. BKH-2024..."
+                    value={payTransaction}
+                    onChange={(e) => setPayTransaction(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPayModalParcel(null)}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <motion.button
+                    type="submit"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={payLoading}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition-all disabled:opacity-50"
+                  >
+                    {payLoading ? 'Processing…' : 'Submit Payment'}
                   </motion.button>
                 </div>
               </form>

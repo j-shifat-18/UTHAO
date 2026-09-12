@@ -23,6 +23,8 @@ import BookDelivery from './pages/delivery/BookDelivery.jsx'
 import DeliveryAgentPortal from './pages/delivery/DeliveryAgentPortal.jsx'
 import DeliveryManagement from './pages/delivery/DeliveryManagement.jsx'
 import Reports from './pages/reports/Reports.jsx'
+import MyPayments from './pages/customer/MyPayments.jsx'
+import Payments from './pages/admin/Payments.jsx'
 
 export default function App() {
   const { user, booting } = useAuth()
@@ -87,6 +89,7 @@ export default function App() {
         />
         <Route path="book-parcel" element={<CreateParcel />} />
         <Route path="my-parcels" element={<MyParcels />} />
+        <Route path="my-payments" element={<MyPayments />} />
         <Route
           path="admin/parcels"
           element={
@@ -124,6 +127,14 @@ export default function App() {
           element={
             <ProtectedRoute adminOnly>
               <Warehouses />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/payments"
+          element={
+            <ProtectedRoute staffOnly>
+              <Payments />
             </ProtectedRoute>
           }
         />
