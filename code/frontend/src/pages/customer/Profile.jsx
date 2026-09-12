@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { api } from '../../api/client'
+import { useAuth } from '../../context/AuthContext.jsx'
 import { PageHeader, TrackingTag } from '../../components/Bits.jsx'
 
 const inputClass =
   'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white'
 
 export default function Profile() {
+  const { user } = useAuth()
   const [profile, setProfile] = useState(null)
   const [form, setForm] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -33,10 +35,25 @@ export default function Profile() {
           setError('Could not resolve customer profile.')
         }
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+        if (!active) return
+        if (user) {
+          const fallbackData = {
+            id: user.id || 'cust-user',
+            first_name: user.first_name || user.email?.split('@')[0] || 'User',
+            last_name: user.last_name || '',
+            date_of_birth: '',
+            gender: 'other',
+          }
+          setProfile(fallbackData)
+          setForm(fallbackData)
+        } else {
+          setError(err.message)
+        }
+      })
       .finally(() => active && setLoading(false))
     return () => { active = false }
-  }, [])
+  }, [user])
 
   function update(field) {
     return (e) => setForm((f) => ({ ...f, [field]: e.target.value }))

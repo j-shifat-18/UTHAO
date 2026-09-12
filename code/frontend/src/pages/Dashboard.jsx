@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
-import { Package, CheckCircle, UserCircle, MapPin, Users, UsersRound, Truck, Search, PlusCircle } from 'lucide-react'
-import { Package, CheckCircle, UserCircle, MapPin, Users, UsersRound, PlusCircle, PackageCheck, Boxes } from 'lucide-react'
+import {
+  Package, CheckCircle, UserCircle, MapPin, Users, UsersRound,
+  Truck, Search, PlusCircle, PackageCheck, Boxes, BarChart3,
+} from 'lucide-react'
 
 const StatCard = ({ label, value, accent }) => (
   <motion.div
@@ -29,7 +31,7 @@ const QuickLink = ({ to, icon: Icon, children }) => (
 )
 
 export default function Dashboard() {
-  const { user, isAdminLike } = useAuth()
+  const { user, isAdminLike, isStaff } = useAuth()
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
@@ -99,6 +101,7 @@ export default function Dashboard() {
           <QuickLink to="/dashboard/delivery/track" icon={Search}>Track Parcel</QuickLink>
           <QuickLink to="/dashboard/delivery/book" icon={PlusCircle}>Book Delivery</QuickLink>
           <QuickLink to="/dashboard/delivery/agent" icon={Truck}>Rider Portal</QuickLink>
+          {isStaff && <QuickLink to="/dashboard/reports" icon={BarChart3}>Reports & Analytics</QuickLink>}
           {!isAdminLike && <QuickLink to="/dashboard/book-parcel" icon={PlusCircle}>Book new parcel</QuickLink>}
           {!isAdminLike && <QuickLink to="/dashboard/my-parcels" icon={PackageCheck}>My parcels</QuickLink>}
           <QuickLink to="/dashboard/profile" icon={UserCircle}>Update profile</QuickLink>

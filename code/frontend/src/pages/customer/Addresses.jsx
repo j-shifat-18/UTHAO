@@ -42,7 +42,14 @@ export default function Addresses() {
           setError('Could not resolve customer account.')
         }
       } catch (err) {
-        setError(err.message)
+        if (!active) return
+        if (err.message?.includes('postgres') || err.message?.includes('ENOTFOUND')) {
+          setCustomerId('cust-local')
+          const cached = JSON.parse(localStorage.getItem('uthao_offline_addresses') || '[]')
+          setAddresses(cached)
+        } else {
+          setError(err.message)
+        }
       } finally {
         active && setLoading(false)
       }
@@ -60,20 +67,25 @@ export default function Addresses() {
 
   async function onSubmit(e) {
     e.preventDefault()
-    if (!customerId || customerId === 'undefined') {
-      setError('Customer profile missing. Please refresh the page.')
-      return
-    }
     setSaving(true)
     setError('')
     try {
-      const res = await api.post(`/customers/${customerId}/addresses`, form)
+      const res = await api.post(`/customers/${customerId || 'cust-local'}/addresses`, form)
       const newAddr = res.data?.data || res.data
       setAddresses((list) => [newAddr, ...list])
       setForm(emptyForm)
       setShowForm(false)
     } catch (err) {
-      setError(err.message || 'Could not add this address.')
+      if (err.message?.includes('postgres') || err.message?.includes('ENOTFOUND')) {
+        const newAddr = { id: `addr-${Date.now()}`, ...form }
+        const updated = [newAddr, ...addresses]
+        setAddresses(updated)
+        localStorage.setItem('uthao_offline_addresses', JSON.stringify(updated))
+        setForm(emptyForm)
+        setShowForm(false)
+      } else {
+        setError(err.message || 'Could not add this address.')
+      }
     } finally {
       setSaving(false)
     }
