@@ -1,10 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
-import { Package, LayoutDashboard, User, MapPin, Users, UsersRound, LogOut, Truck, Navigation, PlusCircle, Search } from 'lucide-react'
 import {
   Package, LayoutDashboard, User, MapPin, Users, UsersRound,
   Building2, Warehouse, PlusCircle, PackageCheck, Boxes, LogOut, X, Menu,
+  Truck, Navigation, Search, BarChart3,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -26,7 +26,7 @@ const NavItem = ({ to, end, icon: Icon, children, onClick }) => (
 )
 
 function SidebarContent({ onNavClick }) {
-  const { user, logout, isAdminLike } = useAuth()
+  const { user, logout, isAdminLike, isStaff } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
@@ -71,23 +71,31 @@ function SidebarContent({ onNavClick }) {
           </nav>
         )}
 
-      {/* Delivery Module */}
-      <nav className="mb-6">
-        <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Delivery Module</p>
-        <div className="flex flex-col gap-1">
-          <NavItem to="/dashboard/delivery/track" icon={Search}>Track Parcel</NavItem>
-          <NavItem to="/dashboard/delivery/book" icon={PlusCircle}>Book Delivery</NavItem>
-          <NavItem to="/dashboard/delivery/agent" icon={Truck}>Rider Portal</NavItem>
-          {isAdminLike && (
-            <NavItem to="/dashboard/delivery/manage" icon={Navigation}>Fleet Operations</NavItem>
-          )}
-        </div>
-      </nav>
+        {/* Delivery Module */}
+        {(isStaff || isAgent) && (
+          <nav>
+            <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Delivery Module</p>
+            <div className="flex flex-col gap-1">
+              <NavItem to="/dashboard/delivery/track" icon={Search} onClick={onNavClick}>Track Parcel</NavItem>
+              {isStaff && <NavItem to="/dashboard/delivery/book" icon={PlusCircle} onClick={onNavClick}>Book Delivery</NavItem>}
+              <NavItem to="/dashboard/delivery/agent" icon={Truck} onClick={onNavClick}>Rider Portal</NavItem>
+              {isAdminLike && (
+                <NavItem to="/dashboard/delivery/manage" icon={Navigation} onClick={onNavClick}>Fleet Operations</NavItem>
+              )}
+            </div>
+          </nav>
+        )}
 
-      {/* Admin */}
-      {isAdminLike && (
-        <nav className="mb-6">
-          <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Administration</p>
+        {/* Reports & Analytics — Staff (Admin, Manager, Branch Employee) */}
+        {isStaff && (
+          <nav>
+            <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Analytics</p>
+            <div className="flex flex-col gap-1">
+              <NavItem to="/dashboard/reports" icon={BarChart3} onClick={onNavClick}>Reports & Analytics</NavItem>
+            </div>
+          </nav>
+        )}
+
         {/* Account */}
         <nav>
           <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Account</p>
@@ -97,7 +105,7 @@ function SidebarContent({ onNavClick }) {
           </div>
         </nav>
 
-        {/* Admin */}
+        {/* Administration */}
         {isAdminLike && (
           <nav>
             <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Administration</p>

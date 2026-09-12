@@ -22,6 +22,7 @@ import DeliveryTracking from './pages/delivery/DeliveryTracking.jsx'
 import BookDelivery from './pages/delivery/BookDelivery.jsx'
 import DeliveryAgentPortal from './pages/delivery/DeliveryAgentPortal.jsx'
 import DeliveryManagement from './pages/delivery/DeliveryManagement.jsx'
+import Reports from './pages/reports/Reports.jsx'
 
 export default function App() {
   const { user, booting } = useAuth()
@@ -52,13 +53,38 @@ export default function App() {
         <Route path="profile" element={<Profile />} />
         <Route path="addresses" element={<Addresses />} />
         <Route path="delivery/track" element={<DeliveryTracking />} />
-        <Route path="delivery/book" element={<BookDelivery />} />
-        <Route path="delivery/agent" element={<DeliveryAgentPortal />} />
+        <Route
+          path="delivery/book"
+          element={
+            <ProtectedRoute staffOnly>
+              <BookDelivery />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="delivery/agent"
+          element={
+            <ProtectedRoute agentOrStaffOnly>
+              <DeliveryAgentPortal />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="delivery/manage"
           element={
             <ProtectedRoute adminOnly>
               <DeliveryManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="reports"
+          element={
+            <ProtectedRoute staffOnly>
+              <Reports />
+            </ProtectedRoute>
+          }
+        />
         <Route path="book-parcel" element={<CreateParcel />} />
         <Route path="my-parcels" element={<MyParcels />} />
         <Route

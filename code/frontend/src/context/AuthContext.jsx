@@ -66,10 +66,13 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  const isAdminLike = user && ['admin', 'manager'].includes(user.role)
+  const userRole = typeof user?.role === 'string' ? user.role.toLowerCase() : (user?.role?.name || '').toLowerCase()
+  const isAdminLike = user && ['admin', 'manager'].includes(userRole)
+  const isStaff = user && ['admin', 'manager', 'branch_employee'].includes(userRole)
+  const isAgent = user && userRole === 'delivery_agent'
 
   return (
-    <AuthContext.Provider value={{ user, setUser, booting, login, register, logout, isAdminLike }}>
+    <AuthContext.Provider value={{ user, setUser, booting, login, register, logout, isAdminLike, isStaff, isAgent }}>
       {children}
     </AuthContext.Provider>
   )
