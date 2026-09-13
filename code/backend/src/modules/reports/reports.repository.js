@@ -107,25 +107,28 @@ const getMostActiveBranches = async (dateFrom, dateTo, limit = 10) => {
  *   this. Currently acceptable because delayed parcels are a small fraction.
  */
 const getDelayedParcels = async ({ limit, offset, priority, branch_id }) => {
-  let sql    = `SELECT * FROM v_delayed_parcels WHERE 1=1`;
-  const params = [];
+  // Build a single shared WHERE clause for both the data and count queries
+  const filters = [];
+  const filterParams = [];
   let i = 1;
 
-  if (priority)  { sql += ` AND priority = $${i++}`;           params.push(priority); }
-  if (branch_id) { sql += ` AND origin_branch_id = $${i++}`;   params.push(branch_id); }
+  if (priority)  { filters.push(`priority = $${i++}`);           filterParams.push(priority); }
+  if (branch_id) { filters.push(`origin_branch_id = $${i++}`);   filterParams.push(branch_id); }
+
+  const whereClause = filters.length ? ' AND ' + filters.join(' AND ') : '';
 
   const countResult = await query(
-    `SELECT COUNT(*) AS total FROM v_delayed_parcels WHERE 1=1`
-      + (priority  ? ` AND priority = '${priority}'`   : '')
-      + (branch_id ? ` AND origin_branch_id = ${branch_id}` : ''),
-    []
+    `SELECT COUNT(*) AS total FROM v_delayed_parcels WHERE 1=1${whereClause}`,
+    filterParams
   );
   const totalCount = parseInt(countResult.rows[0].total, 10);
 
-  sql += ` ORDER BY days_overdue DESC LIMIT $${i} OFFSET $${i + 1}`;
-  params.push(limit, offset);
-
-  const result = await query(sql, params);
+  const dataParams = [...filterParams, limit, offset];
+  const result = await query(
+    `SELECT * FROM v_delayed_parcels WHERE 1=1${whereClause}
+     ORDER BY days_overdue DESC LIMIT $${i} OFFSET $${i + 1}`,
+    dataParams
+  );
   return { rows: result.rows, totalCount };
 };
 

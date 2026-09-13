@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "migrate": "node src/database/migrate.js",
+    "migrate:reports": "node src/database/migrate-reports.js",
     "db:drop": "node src/database/drop.js",
     "db:reset": "node src/database/drop.js && node src/database/migrate.js"
   },
