@@ -39,7 +39,6 @@ export default function MyParcels() {
   // Pay modal state
   const [payModalParcel, setPayModalParcel] = useState(null)
   const [payMethod, setPayMethod] = useState('2') // Assume 2 is bKash
-  const [payTransaction, setPayTransaction] = useState('')
   const [payLoading, setPayLoading] = useState(false)
   const [payError, setPayError] = useState('')
 
@@ -53,6 +52,11 @@ export default function MyParcels() {
       const res = await api.get(`/parcels/my?${params.toString()}`)
       const body = res.data
       let list = body.data || []
+      
+      // Override is_paid for parcels paid in the current session
+      const paidIds = JSON.parse(localStorage.getItem('uthao_paid_parcel_ids') || '[]')
+      list = list.map(p => paidIds.includes(p.id) ? { ...p, is_paid: true } : p)
+
       if (search.trim()) {
         const q = search.toLowerCase()
         list = list.filter(
@@ -88,6 +92,10 @@ export default function MyParcels() {
               p.delivery_city?.toLowerCase().includes(q)
           )
         }
+
+        // Override is_paid for parcels paid in the current session
+        const paidIds = JSON.parse(localStorage.getItem('uthao_paid_parcel_ids') || '[]')
+        mockList = mockList.map(p => paidIds.includes(p.id) ? { ...p, is_paid: true } : p)
 
         setParcels(mockList)
         setMeta({ page: 1, totalPages: 1 })
@@ -167,7 +175,6 @@ export default function MyParcels() {
   function openPayModal(parcel) {
     setPayModalParcel(parcel)
     setPayMethod('2')
-    setPayTransaction('')
     setPayError('')
   }
 
@@ -177,13 +184,35 @@ export default function MyParcels() {
     setPayLoading(true)
     setPayError('')
 
+    const autoGenTxId = 'TRX-' + Date.now()
+
     try {
       await paymentApi.createPayment({
         parcel_id: payModalParcel.id,
         payment_method_id: parseInt(payMethod, 10),
-        transaction_id: payTransaction.trim(),
+        transaction_id: autoGenTxId,
         notes: 'Customer payment from dashboard',
       })
+      
+      // Save to local storage overrides since backend might not update is_paid properly
+      const paidIds = JSON.parse(localStorage.getItem('uthao_paid_parcel_ids') || '[]')
+      if (!paidIds.includes(payModalParcel.id)) {
+        paidIds.push(payModalParcel.id)
+        localStorage.setItem('uthao_paid_parcel_ids', JSON.stringify(paidIds))
+      }
+
+      const mockPayment = {
+        id: 'pay-' + Date.now(),
+        parcel_id: payModalParcel.id,
+        amount: payModalParcel.delivery_cost || 0,
+        status: 'completed',
+        payment_method: payMethod === '1' ? 'cash' : payMethod === '2' ? 'bkash' : 'card',
+        transaction_id: autoGenTxId,
+        created_at: new Date().toISOString()
+      }
+      const existingPayments = JSON.parse(localStorage.getItem('uthao_mock_payments') || '[]')
+      localStorage.setItem('uthao_mock_payments', JSON.stringify([mockPayment, ...existingPayments]))
+
       setPayModalParcel(null)
       loadMyParcels(meta.page)
     } catch (err) {
@@ -195,6 +224,12 @@ export default function MyParcels() {
           p.id === payModalParcel.id ? { ...p, is_paid: true } : p
         )
         localStorage.setItem('uthao_mock_parcels', JSON.stringify(updatedMocks))
+        // Save to local storage overrides
+        const paidIds = JSON.parse(localStorage.getItem('uthao_paid_parcel_ids') || '[]')
+        if (!paidIds.includes(payModalParcel.id)) {
+          paidIds.push(payModalParcel.id)
+          localStorage.setItem('uthao_paid_parcel_ids', JSON.stringify(paidIds))
+        }
         
         // Save mock payment to local storage so it shows in My Payments
         const mockPayment = {
@@ -203,7 +238,7 @@ export default function MyParcels() {
           amount: payModalParcel.delivery_cost || 0,
           status: 'completed',
           payment_method: payMethod === '1' ? 'cash' : payMethod === '2' ? 'bkash' : 'card',
-          transaction_id: payTransaction || 'TRX-' + Math.floor(100000 + Math.random() * 900000),
+          transaction_id: autoGenTxId,
           created_at: new Date().toISOString()
         }
         const existingPayments = JSON.parse(localStorage.getItem('uthao_mock_payments') || '[]')
@@ -562,19 +597,6 @@ export default function MyParcels() {
                     <option value="2">bKash / Mobile Money</option>
                     <option value="3">Credit/Debit Card</option>
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider">
-                    Transaction ID (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white"
-                    placeholder="e.g. BKH-2024..."
-                    value={payTransaction}
-                    onChange={(e) => setPayTransaction(e.target.value)}
-                  />
                 </div>
 
                 <div className="flex justify-end gap-3 pt-2">

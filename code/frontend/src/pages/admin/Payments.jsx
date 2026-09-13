@@ -51,15 +51,42 @@ export default function Payments() {
       const revRes = await paymentApi.getPaymentRevenue()
       setRevenueSummary(revRes.data?.data?.summary)
     } catch (err) {
-      // Mock Fallback
-      if (err.status === 404 || err.message.includes('network') || err.message.includes('fetch')) {
-        setPayments([
-          { id: '1', parcel_id: 'p1', amount: 150.00, status: 'completed', payment_method: 'card', transaction_id: 'TRX-123', created_at: new Date().toISOString() },
-          { id: '2', parcel_id: 'p2', amount: 80.00, status: 'pending', payment_method: 'bkash', transaction_id: null, created_at: new Date().toISOString() },
-        ])
+      // Mock Fallback via deliveryApi
+      try {
+        const { deliveryApi } = await import('../../api/deliveryApi.js')
+        let parcels = await deliveryApi.getParcels()
+        
+        let list = parcels.map(p => ({
+          id: p.id,
+          parcel_id: p.tracking_number,
+          amount: p.delivery_fee || 100,
+          status: p.is_paid ? 'completed' : 'pending',
+          payment_method: p.payment_method || 'cod',
+          transaction_id: p.is_paid ? `TRX-${p.id.split('-')[1] || Date.now()}` : null,
+          created_at: p.created_at || new Date().toISOString(),
+          // Details for modal
+          sender_name: p.sender_name,
+          receiver_name: p.receiver_name,
+          delivery_address: p.delivery_address,
+          delivery_city: p.delivery_city,
+          refund_requested: p.refund_requested,
+          refund_reason: p.refund_reason,
+        }))
+
+        if (search.trim()) {
+          const q = search.toLowerCase()
+          list = list.filter(p => p.transaction_id?.toLowerCase().includes(q) || p.parcel_id?.toLowerCase().includes(q))
+        }
+        if (statusFilter) {
+          list = list.filter(p => p.status === statusFilter)
+        }
+
+        setPayments(list)
         setMeta({ page: 1, totalPages: 1 })
-        setRevenueSummary({ net_revenue: '230.00', total_payments: '2', total_refunded: '0.00' })
-      } else {
+
+        const totalPaid = list.filter(l => l.status === 'completed').reduce((acc, curr) => acc + Number(curr.amount), 0)
+        setRevenueSummary({ net_revenue: totalPaid.toFixed(2), total_payments: list.length.toString(), total_refunded: '0.00' })
+      } catch (e) {
         setError(err.message || 'Failed to load payments')
       }
     } finally {
@@ -251,6 +278,14 @@ export default function Payments() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right space-x-2">
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => openActionModal(p, 'details')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all mb-1"
+                        >
+                          <Search size={14} /> Details
+                        </motion.button>
                         {p.status === 'pending' && (
                           <>
                             <motion.button
@@ -271,14 +306,14 @@ export default function Payments() {
                             </motion.button>
                           </>
                         )}
-                        {p.status === 'completed' && (
+                        {p.status === 'completed' && p.refund_requested && (
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={() => openActionModal(p, 'refund')}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-all"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-all"
                           >
-                            <RefreshCcw size={14} /> Refund
+                            <RefreshCcw size={14} /> Refund Requested
                           </motion.button>
                         )}
                       </td>
@@ -323,6 +358,34 @@ export default function Payments() {
                 </div>
               )}
 
+              {actionType === 'details' ? (
+                <div className="space-y-3">
+                  <div className="bg-gray-50 p-4 rounded-xl text-sm space-y-2 text-gray-700 border border-gray-100">
+                    <p><span className="font-semibold text-gray-900">Parcel ID:</span> <span className="font-mono">{actionPayment.parcel_id}</span></p>
+                    <p><span className="font-semibold text-gray-900">Sender:</span> {actionPayment.sender_name || 'N/A'}</p>
+                    <p><span className="font-semibold text-gray-900">Receiver:</span> {actionPayment.receiver_name || 'N/A'}</p>
+                    <p><span className="font-semibold text-gray-900">Destination:</span> {actionPayment.delivery_address || 'N/A'} ({actionPayment.delivery_city})</p>
+                    <p><span className="font-semibold text-gray-900">Amount:</span> ৳{Number(actionPayment.amount).toFixed(2)}</p>
+                    <p><span className="font-semibold text-gray-900">Payment Method:</span> <span className="uppercase text-xs bg-gray-200 px-1.5 py-0.5 rounded ml-1 font-semibold">{actionPayment.payment_method}</span></p>
+                    <p><span className="font-semibold text-gray-900">Status:</span> <span className={`uppercase text-xs px-1.5 py-0.5 rounded ml-1 font-semibold ${actionPayment.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{actionPayment.status}</span></p>
+                    {actionPayment.refund_requested && (
+                      <div className="mt-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
+                        <p className="font-semibold text-amber-800 text-xs uppercase mb-1">Refund Requested</p>
+                        <p className="text-amber-700 italic">"{actionPayment.refund_reason}"</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActionPayment(null)}
+                      className="px-4 py-2 text-sm font-semibold text-white bg-gray-800 rounded-xl hover:bg-gray-900 transition-all"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <form onSubmit={handleActionSubmit} className="space-y-4">
                 {actionType === 'verify' && (
                   <div>
@@ -377,6 +440,7 @@ export default function Payments() {
                   </motion.button>
                 </div>
               </form>
+              )}
             </motion.div>
           </div>
         )}

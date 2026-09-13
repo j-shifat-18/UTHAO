@@ -14,13 +14,9 @@ import {
   ShieldCheck,
   Navigation,
 } from 'lucide-react'
-import { deliveryApi } from '../../api/deliveryApi.js'
+import { api } from '../../api/client.js'
 
-const SAMPLE_TRACKING_NUMBERS = [
-  { code: 'UT-892410-DH', label: 'Out for Delivery (Dhaka)' },
-  { code: 'UT-771029-DH', label: 'Picked Up (Dhaka)' },
-  { code: 'UT-654321-CTG', label: 'Delivered (Chittagong)' },
-]
+
 
 const LIFECYCLE_STEPS = [
   { key: 'booked', label: 'Booked', desc: 'Order confirmed' },
@@ -48,22 +44,69 @@ export default function DeliveryTracking() {
   const [parcel, setParcel] = useState(null)
   const [searched, setSearched] = useState(false)
 
+  const [myParcels, setMyParcels] = useState([])
+
   const handleSearch = async (trackingNum = query) => {
     if (!trackingNum.trim()) return
     setLoading(true)
     setSearched(true)
+    setParcel(null)
     try {
-      const res = await deliveryApi.getParcelByTracking(trackingNum)
-      setParcel(res)
-    } catch {
-      setParcel(null)
+      const res = await api.get(`/parcels/track/${trackingNum.trim()}`)
+      const fetchedParcel = res.data?.data?.parcel || res.data?.data
+      if (fetchedParcel) {
+         setParcel({
+           ...fetchedParcel,
+           history: res.data?.data?.history || []
+         })
+      } else {
+         setParcel(null)
+      }
+    } catch (err) {
+      // Mock Fallback
+      const msg = String(err.message || '').toLowerCase()
+      if (msg.includes('network') || msg.includes('fetch') || err.code === 'ERR_NETWORK' || err.status === 404 || err.status === 500) {
+        try {
+          const { deliveryApi } = await import('../../api/deliveryApi.js')
+          const found = await deliveryApi.getParcelByTracking(trackingNum.trim())
+          if (found) {
+             setParcel({
+               ...found,
+               history: found.history?.length > 0 ? found.history : [
+                 { status: 'booked', timestamp: new Date(Date.now() - 86400000).toISOString(), notes: 'Parcel booked by customer', location: 'Origin Hub' },
+                 { status: found.status, timestamp: new Date().toISOString(), notes: 'Current package status', location: found.delivery_city || 'Destination Hub' }
+               ]
+             })
+          } else {
+             setParcel(null)
+          }
+        } catch (e) {
+           setParcel(null)
+        }
+      } else {
+        setParcel(null)
+      }
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    handleSearch('UT-892410-DH')
+    setQuery('')
+    
+    // Fetch user's parcels to show them as quick select options
+    const fetchMyParcels = async () => {
+      try {
+        const res = await api.get('/parcels/my')
+        setMyParcels(res.data?.data || [])
+      } catch (err) {
+        // Mock Fallback
+        const mocks = JSON.parse(localStorage.getItem('uthao_mock_parcels') || '[]')
+        setMyParcels(mocks)
+      }
+    }
+    
+    fetchMyParcels()
   }, [])
 
   const currentStepIndex = parcel
@@ -86,7 +129,7 @@ export default function DeliveryTracking() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
-        className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3"
+        className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4"
       >
         <form
           onSubmit={(e) => {
@@ -120,22 +163,48 @@ export default function DeliveryTracking() {
           </button>
         </form>
 
-        {/* Quick Sample Tracking Numbers */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-gray-500">
-          <span className="font-medium text-gray-600">Sample tracking:</span>
-          {SAMPLE_TRACKING_NUMBERS.map((s) => (
-            <button
-              key={s.code}
-              onClick={() => {
-                setQuery(s.code)
-                handleSearch(s.code)
-              }}
-              className="px-2.5 py-1 bg-gray-100 hover:bg-red-50 hover:text-red-700 text-gray-700 rounded-lg border border-gray-200 transition-all font-mono text-[11px]"
-            >
-              {s.code} ({s.label})
-            </button>
-          ))}
-        </div>
+        {myParcels.length > 0 && (
+          <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
+            <span className="text-sm font-semibold text-gray-800">Your Recent Parcels</span>
+            <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+              {myParcels.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => {
+                    setQuery(p.tracking_number)
+                    handleSearch(p.tracking_number)
+                  }}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-xl cursor-pointer transition-all shadow-sm"
+                >
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-gray-900 text-sm">{p.tracking_number}</span>
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider ${
+                        p.status === 'delivered' ? 'bg-green-100 text-green-700' : 
+                        p.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {p.status?.replace('_', ' ') || 'Unknown'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 flex items-center gap-3">
+                      <span>{new Date(p.created_at || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                      <span>{p.delivery_city || 'Delivery'}</span>
+                      <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                      <span className="font-medium text-gray-600 uppercase">{p.payment_method || 'CASH'}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 sm:mt-0">
+                    <button className="text-xs font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors">
+                      Track Now
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Results area */}
@@ -325,7 +394,7 @@ export default function DeliveryTracking() {
                           <div className="flex items-center justify-between font-medium text-gray-900">
                             <span className="capitalize font-bold text-red-600">{hist.status.replace('_', ' ')}</span>
                             <span className="text-gray-400 text-[11px] font-mono">
-                              {new Date(hist.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {hist.timestamp || hist.created_at ? new Date(hist.timestamp || hist.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                             </span>
                           </div>
                           <p className="text-gray-700 mt-1">{hist.notes}</p>

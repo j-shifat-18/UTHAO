@@ -68,6 +68,7 @@ function SidebarContent({ onNavClick }) {
               <NavItem to="/dashboard/book-parcel" icon={PlusCircle} onClick={onNavClick}>Book Parcel</NavItem>
               <NavItem to="/dashboard/my-parcels" icon={PackageCheck} onClick={onNavClick}>My Parcels</NavItem>
               <NavItem to="/dashboard/my-payments" icon={CreditCard} onClick={onNavClick}>My Payments</NavItem>
+              <NavItem to="/dashboard/delivery/track" icon={Search} onClick={onNavClick}>Track Parcel</NavItem>
             </div>
           </nav>
         )}
@@ -77,9 +78,8 @@ function SidebarContent({ onNavClick }) {
           <nav>
             <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Delivery Module</p>
             <div className="flex flex-col gap-1">
-              <NavItem to="/dashboard/delivery/track" icon={Search} onClick={onNavClick}>Track Parcel</NavItem>
-              {isStaff && <NavItem to="/dashboard/delivery/book" icon={PlusCircle} onClick={onNavClick}>Book Delivery</NavItem>}
-              <NavItem to="/dashboard/delivery/agent" icon={Truck} onClick={onNavClick}>Rider Portal</NavItem>
+              {(isStaff && !isAdminLike) && <NavItem to="/dashboard/delivery/book" icon={PlusCircle} onClick={onNavClick}>Book Delivery</NavItem>}
+              {isAgent && <NavItem to="/dashboard/delivery/agent" icon={Truck} onClick={onNavClick}>Rider Portal</NavItem>}
               {isAdminLike && (
                 <NavItem to="/dashboard/delivery/manage" icon={Navigation} onClick={onNavClick}>Fleet Operations</NavItem>
               )}
