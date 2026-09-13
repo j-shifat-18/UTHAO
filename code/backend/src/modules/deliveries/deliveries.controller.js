@@ -3,7 +3,6 @@ const { success, created } = require('../../utils/response');
 const { parsePagination, buildMeta } = require('../../utils/pagination');
 const deliveriesService = require('./deliveries.service');
 
-// ─── List / Fetch ─────────────────────────────────────────────────────────────
 
 const getAllAssignments = catchAsync(async (req, res) => {
   const { page, limit, offset } = parsePagination(req.query);
@@ -118,12 +117,18 @@ const updateNotes = catchAsync(async (req, res) => {
   return success(res, { message: 'Notes updated', data: result });
 });
 
+const getAllDeliveryAgents = catchAsync(async (req, res) => {
+  const agents = await deliveriesService.getAllDeliveryAgents();
+  return success(res, { message: 'Delivery agents fetched', data: agents });
+});
+
 module.exports = {
   getAllAssignments,
   getAssignmentById,
   getAssignmentsByParcel,
   getMyAssignments,
   getAgentAssignments,
+  getAllDeliveryAgents,
   assignAgent,
   reassignAgent,
   startAssignment,

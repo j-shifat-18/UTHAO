@@ -15,6 +15,9 @@ const validateCreatePayment = (body) => {
   if (body.transaction_id && typeof body.transaction_id !== 'string') {
     errors.push({ field: 'transaction_id', message: 'Transaction ID must be a string' });
   }
+  if (body.status && !VALID_STATUSES.includes(body.status)) {
+    errors.push({ field: 'status', message: `Status must be one of: ${VALID_STATUSES.join(', ')}` });
+  }
 
   return errors;
 };

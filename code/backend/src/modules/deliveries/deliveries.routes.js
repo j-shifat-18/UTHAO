@@ -24,7 +24,7 @@ router.get(
   ctrl.getMyAssignments
 );
 
-// ─── Assignment management (staff only) ──────────────────────────────────────
+// ─── Assignment management (staff only) ─────────────
 
 // GET /deliveries
 // List all assignments with filters
@@ -49,6 +49,14 @@ router.get(
   '/parcels/:parcelId',
   authorize('admin', 'manager', 'branch_employee'),
   ctrl.getAssignmentsByParcel
+);
+
+// GET /deliveries/agents
+// All active delivery agents list (staff view)
+router.get(
+  '/agents',
+  authorize('admin', 'manager', 'branch_employee'),
+  ctrl.getAllDeliveryAgents
 );
 
 // GET /deliveries/agents/:agentId

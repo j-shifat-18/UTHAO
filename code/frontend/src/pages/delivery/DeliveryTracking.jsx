@@ -337,44 +337,72 @@ export default function DeliveryTracking() {
             {/* Assigned Rider Info & Route Card */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="md:col-span-1 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Assigned Delivery Agent</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+                    {parcel.agent?.assignment_type === 'pickup' || parcel.status === 'booked'
+                      ? 'Pickup Agent'
+                      : 'Delivery Rider'}
+                  </p>
+                  {parcel.agent && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">
+                      Assigned
+                    </span>
+                  )}
+                </div>
+
                 {parcel.agent ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-red-100 text-red-700 flex items-center justify-center font-bold text-lg">
-                        {parcel.agent.first_name[0]}
-                        {parcel.agent.last_name[0]}
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-red-500/20">
+                        {(parcel.agent.first_name?.[0] || 'A').toUpperCase()}
+                        {(parcel.agent.last_name?.[0] || '').toUpperCase()}
                       </div>
                       <div>
                         <p className="font-bold text-gray-900 text-sm">
                           {parcel.agent.first_name} {parcel.agent.last_name}
                         </p>
-                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                          <Truck size={12} /> {parcel.agent.vehicle_type.toUpperCase()} • Rating ⭐ {parcel.agent.rating}
+                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5 font-medium">
+                          <Truck size={12} className="text-red-500" />{' '}
+                          {(parcel.agent.vehicle_type || 'Motorcycle').toUpperCase()} • Rating ⭐{' '}
+                          {parcel.agent.rating || '5.0'}
                         </p>
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs space-y-1">
-                      <p className="text-gray-600">
-                        Vehicle No: <span className="font-mono font-bold text-gray-800">{parcel.agent.vehicle_plate_number}</span>
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-xs space-y-1.5">
+                      <p className="text-gray-600 flex justify-between">
+                        <span className="text-gray-400">Vehicle No:</span>
+                        <span className="font-mono font-bold text-gray-800">
+                          {parcel.agent.vehicle_plate_number || 'DHAKA-METRO-1234'}
+                        </span>
                       </p>
-                      <p className="text-gray-600">
-                        Zone: <span className="font-medium text-gray-800">{parcel.agent.current_zone}</span>
+                      <p className="text-gray-600 flex justify-between">
+                        <span className="text-gray-400">Zone / Hub:</span>
+                        <span className="font-medium text-gray-800">
+                          {parcel.agent.current_zone || 'Dhaka Metropolitan'}
+                        </span>
                       </p>
+                      {parcel.agent.notes && (
+                        <p className="text-gray-600 pt-1 border-t border-gray-200/60 text-[11px] italic">
+                          "{parcel.agent.notes}"
+                        </p>
+                      )}
                     </div>
 
-                    <a
-                      href={`tel:${parcel.agent.phone}`}
-                      className="w-full py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-medium flex items-center justify-center gap-2 transition-all"
-                    >
-                      <Phone size={13} /> Call Rider ({parcel.agent.phone})
-                    </a>
+                    {parcel.agent.phone && (
+                      <a
+                        href={`tel:${parcel.agent.phone}`}
+                        className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-red-600/20 transition-all"
+                      >
+                        <Phone size={13} /> Call {parcel.agent.assignment_type === 'pickup' ? 'Pickup Agent' : 'Delivery Rider'} ({parcel.agent.phone})
+                      </a>
+                    )}
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-gray-400">
-                    <UserCheck size={28} className="mx-auto mb-1 opacity-50" />
-                    <p className="text-xs">Rider assignment pending at hub</p>
+                  <div className="text-center py-6 text-gray-400 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+                    <UserCheck size={28} className="mx-auto mb-1 text-gray-300" />
+                    <p className="text-xs font-medium">Rider assignment pending at hub</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">An agent will be assigned shortly</p>
                   </div>
                 )}
               </div>

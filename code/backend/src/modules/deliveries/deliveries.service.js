@@ -2,7 +2,6 @@ const ApiError = require('../../utils/ApiError');
 const repo = require('./deliveries.repository');
 const parcelsRepo = require('../parcels/parcels.repository');
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
  * Map internal transaction error messages to user-facing ApiErrors.
@@ -65,15 +64,7 @@ const getAgentAssignments = async ({ agentId, limit, offset, status }) => {
 
 // ─── Assign ───────────────────────────────────────────────────────────────────
 
-/**
- * Assign a delivery agent to a parcel for pickup or delivery.
- *
- * Business rules enforced here (before hitting the DB transaction):
- * - Parcel must exist and be in an assignable status
- * - assignment_type 'pickup'   → parcel status must be 'booked'
- * - assignment_type 'delivery' → parcel status must be 'in_transit' or 'at_warehouse'
- * - No duplicate active assignment (also enforced in repo via SELECT FOR UPDATE)
- */
+
 const assignAgent = async (body, requestingUser) => {
   const { parcel_id, agent_id, assignment_type, notes } = body;
 
@@ -83,7 +74,7 @@ const assignAgent = async (body, requestingUser) => {
 
   const validParcelStatusForType = {
     pickup:   ['booked'],
-    delivery: ['in_transit', 'at_warehouse', 'out_for_delivery'],
+    delivery: ['picked_up', 'at_warehouse', 'in_transit', 'out_for_delivery'],
   };
 
   const allowedStatuses = validParcelStatusForType[assignment_type];
@@ -166,7 +157,7 @@ const startAssignment = async (assignmentId, requestingUser) => {
     throw ApiError.badRequest(`Assignment is already '${assignment.status}'`);
   }
 
-  const result = await repo.startAssignment(assignmentId, agent.id);
+  const result = await repo.startAssignment(assignmentId, agent.id, requestingUser.id);
   if (!result) throw ApiError.badRequest('Could not start assignment');
   return result;
 };
@@ -190,7 +181,7 @@ const completeAssignment = async (assignmentId, body, requestingUser) => {
     if (!agent || assignment.agent_id !== agent.id) {
       throw ApiError.forbidden('You can only complete your own assignments');
     }
-    return repo.completeAssignment({ assignment_id: assignmentId, agent_id: agent.id, notes: body.notes });
+    return repo.completeAssignment({ assignment_id: assignmentId, agent_id: agent.id, notes: body.notes, completed_by: requestingUser.id });
   }
 
   // Admin/manager/employee can complete any assignment
@@ -198,6 +189,7 @@ const completeAssignment = async (assignmentId, body, requestingUser) => {
     assignment_id: assignmentId,
     agent_id: assignment.agent_id,
     notes: body.notes,
+    completed_by: requestingUser.id,
   });
 };
 
@@ -219,13 +211,14 @@ const failAssignment = async (assignmentId, body, requestingUser) => {
     if (!agent || assignment.agent_id !== agent.id) {
       throw ApiError.forbidden('You can only report failure on your own assignments');
     }
-    return repo.failAssignment({ assignment_id: assignmentId, agent_id: agent.id, notes: body.notes });
+    return repo.failAssignment({ assignment_id: assignmentId, agent_id: agent.id, notes: body.notes, changed_by: requestingUser.id });
   }
 
   return repo.failAssignment({
     assignment_id: assignmentId,
     agent_id: assignment.agent_id,
     notes: body.notes,
+    changed_by: requestingUser.id,
   });
 };
 
@@ -248,12 +241,20 @@ const updateNotes = async (assignmentId, body, requestingUser) => {
   return updated;
 };
 
+/**
+ * List all active delivery agents.
+ */
+const getAllDeliveryAgents = async () => {
+  return repo.findAllDeliveryAgents();
+};
+
 module.exports = {
   getAllAssignments,
   getAssignmentById,
   getAssignmentsByParcel,
   getMyAssignments,
   getAgentAssignments,
+  getAllDeliveryAgents,
   assignAgent,
   reassignAgent,
   startAssignment,

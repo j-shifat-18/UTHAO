@@ -5,12 +5,9 @@ const authorize = require('../../middleware/role.middleware');
 
 const router = Router();
 
-// All report endpoints require authentication.
-// Admin and manager can access all reports.
-// Branch employees can access operational reports (not revenue).
+
 router.use(authenticate);
 
-// ─── Operational reports (admin, manager, branch_employee) ───────────────────
 
 // GET /reports/daily-deliveries?date_from=&date_to=
 router.get(

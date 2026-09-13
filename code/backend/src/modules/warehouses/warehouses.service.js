@@ -1,4 +1,5 @@
 const ApiError = require('../../utils/ApiError');
+const { query } = require('../../database/query');
 const warehousesRepo = require('./warehouses.repository');
 
 const getAllWarehouses = async ({ limit, offset, search, city, branch_id, is_active }) => {
@@ -69,7 +70,47 @@ const completeTransfer = async (transferId) => {
   }
 };
 
+/**
+ * Update a warehouse's current_occupancy.
+ * - Admins may update any warehouse.
+ * - A manager may only update warehouses that belong to a branch where
+ *   branches.manager_id matches their own user ID.
+ */
+const updateOccupancy = async (warehouseId, current_occupancy, requestingUser) => {
+  const warehouse = await warehousesRepo.findWarehouseById(warehouseId);
+  if (!warehouse) throw ApiError.notFound('Warehouse not found');
+
+  // Admins bypass the branch-ownership check
+  if (requestingUser.role !== 'admin') {
+    if (!warehouse.branch_id) {
+      throw ApiError.forbidden('This warehouse is not linked to any branch');
+    }
+    // Check that the requesting user is the manager of this warehouse's branch
+    const branchResult = await query(
+      'SELECT manager_id FROM branches WHERE id = $1',
+      [warehouse.branch_id]
+    );
+    const branch = branchResult.rows[0];
+    if (!branch || branch.manager_id !== requestingUser.id) {
+      throw ApiError.forbidden('You are only allowed to update occupancy for warehouses in your own branch');
+    }
+  }
+
+  const value = parseInt(current_occupancy, 10);
+  if (isNaN(value) || value < 0) {
+    throw ApiError.badRequest('current_occupancy must be a non-negative integer');
+  }
+
+  const result = await warehousesRepo.updateOccupancy(warehouseId, value);
+  if (!result) {
+    throw ApiError.badRequest(
+      `Occupancy value ${value} exceeds total capacity of ${warehouse.total_capacity}`
+    );
+  }
+  return result;
+};
+
 module.exports = {
   getAllWarehouses, getWarehouseById, createWarehouse, updateWarehouse,
-  deactivateWarehouse, getWarehouseOccupancy, initiateTransfer, completeTransfer,
+  deactivateWarehouse, getWarehouseOccupancy, updateOccupancy, initiateTransfer, completeTransfer,
 };

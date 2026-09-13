@@ -1,11 +1,7 @@
 const { query } = require('../../database/query');
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Resolve a date range. Defaults to current month when omitted.
- * Returns { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' }
- */
+
 const resolveRange = (dateFrom, dateTo) => {
   const now  = new Date();
   const from = dateFrom || new Date(now.getFullYear(), now.getMonth(), 1)
@@ -17,19 +13,18 @@ const resolveRange = (dateFrom, dateTo) => {
 
 // ─── 1. Daily Deliveries ──────────────────────────────────────────────────────
 
-/**
- * Calls fn_daily_delivery_summary stored function.
- * Returns per-day counts and revenue across the given range.
- *
- * Index path: idx_parcels_status_created (status, created_at)
- * Plan note: the composite index allows a single index scan filtered by
- *   created_at range; status breakdowns are resolved via FILTER aggregates
- *   on the already-narrow result — no additional seq scan needed.
- */
 const getDailyDeliveries = async (dateFrom, dateTo) => {
   const { from, to } = resolveRange(dateFrom, dateTo);
   const result = await query(
-    `SELECT * FROM fn_daily_delivery_summary($1::DATE, $2::DATE)`,
+    `SELECT
+       day::TEXT,
+       total_booked,
+       total_delivered,
+       total_cancelled,
+       total_failed,
+       total_in_transit,
+       COALESCE(revenue, 0) AS revenue
+     FROM fn_daily_delivery_summary($1::DATE, $2::DATE)`,
     [from, to]
   );
   return { period: { from, to }, rows: result.rows };
@@ -37,18 +32,17 @@ const getDailyDeliveries = async (dateFrom, dateTo) => {
 
 // ─── 2. Monthly Revenue ───────────────────────────────────────────────────────
 
-/**
- * Calls fn_monthly_revenue stored function.
- * Groups completed payments by calendar month.
- *
- * Index path: idx_payments_paid_at
- * Plan note: index range scan on paid_at, then DATE_TRUNC grouping happens
- *   in memory on the (already small) result set.
- */
+
 const getMonthlyRevenue = async (dateFrom, dateTo) => {
   const { from, to } = resolveRange(dateFrom, dateTo);
   const result = await query(
-    `SELECT * FROM fn_monthly_revenue($1::DATE, $2::DATE)`,
+    `SELECT
+       month::TEXT,
+       total_revenue,
+       total_payments,
+       avg_payment,
+       total_refunded
+     FROM fn_monthly_revenue($1::DATE, $2::DATE)`,
     [from, to]
   );
   return { period: { from, to }, rows: result.rows };
@@ -56,14 +50,7 @@ const getMonthlyRevenue = async (dateFrom, dateTo) => {
 
 // ─── 3. Top Delivery Agents ───────────────────────────────────────────────────
 
-/**
- * Calls fn_top_delivery_agents stored function.
- * Ranks agents by completed deliveries in the period.
- *
- * Index path: idx_assignments_agent_status (agent_id, status)
- * Plan note: index scan on the assignments table filtered to status=completed
- *   + delivery type, then nested-loop join to delivery_agents by PK.
- */
+
 const getTopDeliveryAgents = async (dateFrom, dateTo, limit = 10) => {
   const { from, to } = resolveRange(dateFrom, dateTo);
   const result = await query(
@@ -75,14 +62,7 @@ const getTopDeliveryAgents = async (dateFrom, dateTo, limit = 10) => {
 
 // ─── 4. Most Active Branches ──────────────────────────────────────────────────
 
-/**
- * Calls fn_most_active_branches stored function.
- * Ranks branches by parcel volume and includes revenue, headcounts.
- *
- * Index path: idx_parcels_origin_branch + idx_parcels_created_at
- * Plan note: index scan on origin_branch_id, then date range filter via
- *   idx_parcels_created_at; GROUP BY on the small branches table is cheap.
- */
+
 const getMostActiveBranches = async (dateFrom, dateTo, limit = 10) => {
   const { from, to } = resolveRange(dateFrom, dateTo);
   const result = await query(
@@ -94,18 +74,6 @@ const getMostActiveBranches = async (dateFrom, dateTo, limit = 10) => {
 
 // ─── 5. Delayed Parcels ───────────────────────────────────────────────────────
 
-/**
- * Queries the v_delayed_parcels view with optional pagination.
- * View definition: status NOT IN (delivered/cancelled/returned/failed)
- *   AND estimated_delivery_date < CURRENT_DATE
- *
- * Index path: idx_parcels_status (status) — partial index scan to exclude
- *   terminal statuses; estimated_delivery_date check is cheap given the
- *   already-reduced row set.
- * Plan note: for large tables, adding a partial index on
- *   (estimated_delivery_date) WHERE status NOT IN (...) would further improve
- *   this. Currently acceptable because delayed parcels are a small fraction.
- */
 const getDelayedParcels = async ({ limit, offset, priority, branch_id }) => {
   // Build a single shared WHERE clause for both the data and count queries
   const filters = [];
@@ -134,23 +102,34 @@ const getDelayedParcels = async ({ limit, offset, priority, branch_id }) => {
 
 // ─── 6. Warehouse Occupancy ───────────────────────────────────────────────────
 
-/**
- * Queries the v_warehouse_occupancy view.
- * current_occupancy is maintained by warehouse transfer completion logic.
- *
- * No date range needed — occupancy is a current snapshot.
- * Optional filters: branch_id, city, is_active.
- *
- * Index path: idx_warehouses_branch_id (branch_id), idx_warehouses_is_active
- */
+
 const getWarehouseOccupancy = async ({ branch_id, city, is_active } = {}) => {
-  let sql    = `SELECT * FROM v_warehouse_occupancy WHERE 1=1`;
+  let sql = `
+    SELECT
+      w.id,
+      w.name            AS name,
+      w.code,
+      w.city,
+      w.total_capacity,
+      w.current_occupancy,
+      w.total_capacity - w.current_occupancy AS available_space,
+      CASE
+        WHEN w.total_capacity = 0 THEN 0
+        ELSE ROUND(w.current_occupancy::NUMERIC / w.total_capacity * 100, 2)
+      END AS occupancy_pct,
+      w.branch_id,
+      b.name  AS branch_name,
+      b.city  AS branch_city,
+      w.is_active
+    FROM warehouses w
+    LEFT JOIN branches b ON b.id = w.branch_id
+    WHERE 1=1`;
   const params = [];
   let i = 1;
 
   // Default to active warehouses unless explicitly requested otherwise
   const activeFilter = is_active !== undefined ? is_active : true;
-  sql += ` AND is_active = $${i++}`;
+  sql += ` AND w.is_active = $${i++}`;
   params.push(activeFilter);
 
   if (branch_id) { sql += ` AND branch_id = $${i++}`; params.push(branch_id); }
@@ -164,13 +143,7 @@ const getWarehouseOccupancy = async ({ branch_id, city, is_active } = {}) => {
 
 // ─── 7. Revenue by Branch ─────────────────────────────────────────────────────
 
-/**
- * Calls fn_revenue_by_branch stored function.
- *
- * Index path: idx_payments_paid_at + idx_parcels_origin_branch
- * Plan note: hash join between payments (filtered by paid_at range via
- *   idx_payments_paid_at) and parcels (via origin_branch_id index).
- */
+
 const getRevenueByBranch = async (dateFrom, dateTo) => {
   const { from, to } = resolveRange(dateFrom, dateTo);
   const result = await query(
@@ -182,12 +155,7 @@ const getRevenueByBranch = async (dateFrom, dateTo) => {
 
 // ─── 8. Delivery Success Rate ─────────────────────────────────────────────────
 
-/**
- * Calls fn_delivery_success_rate stored function for overall summary,
- * then runs a supplementary breakdown by priority and by branch.
- *
- * Index path: idx_parcels_status_created composite index.
- */
+
 const getDeliverySuccessRate = async (dateFrom, dateTo) => {
   const { from, to } = resolveRange(dateFrom, dateTo);
 
@@ -243,15 +211,7 @@ const getDeliverySuccessRate = async (dateFrom, dateTo) => {
 
 // ─── 9. Average Delivery Time ─────────────────────────────────────────────────
 
-/**
- * Calls fn_avg_delivery_time stored function for the overall average,
- * then runs a supplementary breakdown by priority tier.
- *
- * Index path: idx_status_history_status (status)
- * Plan note: two index scans on parcel_status_history (one for 'booked',
- *   one for 'delivered'), then a hash join on parcel_id. The CTEs are
- *   materialized by PostgreSQL which avoids re-scanning the same table twice.
- */
+
 const getAvgDeliveryTime = async (dateFrom, dateTo) => {
   const { from, to } = resolveRange(dateFrom, dateTo);
 

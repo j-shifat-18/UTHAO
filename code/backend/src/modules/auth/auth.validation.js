@@ -11,13 +11,12 @@ const validateRegister = (body) => {
   if (!body.first_name) errors.push({ field: 'first_name', message: 'First name is required' });
   if (!body.last_name) errors.push({ field: 'last_name', message: 'Last name is required' });
 
-  const phone = body.phone.replace(/[\s-]/g, '');
-  if (body.phone && !/^\+?[1-9]\d{9,14}$/.test(phone)) {
-    errors.push({ field: 'phone', message: 'Invalid phone format' });
+  if (body.phone) {
+    const phone = body.phone.replace(/[\s-]/g, '');
+    if (!/^\+?[1-9]\d{9,14}$/.test(phone)) {
+      errors.push({ field: 'phone', message: 'Invalid phone format' });
+    }
   }
-  // if (body.phone && !/^\+?[\d\s-]{10,20}$/.test(body.phone)) {
-  //   errors.push({ field: 'phone', message: 'Invalid phone format' });
-  // }
   return errors;
 };
 

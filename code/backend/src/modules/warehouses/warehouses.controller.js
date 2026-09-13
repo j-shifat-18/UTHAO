@@ -53,7 +53,16 @@ const completeTransfer = catchAsync(async (req, res) => {
   return success(res, { message: 'Transfer completed', data: result });
 });
 
+const updateOccupancy = catchAsync(async (req, res) => {
+  const result = await warehousesService.updateOccupancy(
+    parseInt(req.params.id),
+    req.body.current_occupancy,
+    req.user
+  );
+  return success(res, { message: 'Warehouse occupancy updated', data: result });
+});
+
 module.exports = {
   getAllWarehouses, getWarehouseById, createWarehouse, updateWarehouse,
-  deactivateWarehouse, getOccupancy, initiateTransfer, completeTransfer,
+  deactivateWarehouse, getOccupancy, updateOccupancy, initiateTransfer, completeTransfer,
 };

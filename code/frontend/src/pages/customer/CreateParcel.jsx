@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../../api/client'
-import { paymentApi } from '../../api/paymentApi'
 import { PageHeader } from '../../components/Bits.jsx'
-import { Package, Truck, CheckCircle2, ArrowRight, ShieldAlert, Sparkles, MapPin, CreditCard, X } from 'lucide-react'
+import PaymentModal from '../../components/PaymentModal.jsx'
+import { Package, Truck, CheckCircle2, ArrowRight, ShieldAlert, Sparkles, MapPin, ReceiptText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 const inputClass = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white text-gray-800'
@@ -25,9 +25,6 @@ export default function CreateParcel() {
   const [createdParcel, setCreatedParcel] = useState(null)
   
   const [showPayModal, setShowPayModal] = useState(false)
-  const [payMethod, setPayMethod] = useState('2')
-  const [payLoading, setPayLoading] = useState(false)
-  const [payError, setPayError] = useState('')
   const [paymentSuccessData, setPaymentSuccessData] = useState(null)
 
   const [formData, setFormData] = useState({
@@ -60,7 +57,6 @@ export default function CreateParcel() {
             setCategories(cats)
             setFormData((f) => ({ ...f, category_id: String(cats[0].id) }))
           } else {
-            // Default categories if database table is empty
             const fallbackCats = [
               { id: 1, name: 'Document', base_price: '50.00', price_per_kg: '10.00' },
               { id: 2, name: 'Small Package', base_price: '80.00', price_per_kg: '25.00' },
@@ -160,7 +156,6 @@ export default function CreateParcel() {
       description: formData.description.trim() || undefined,
     }
 
-    // Only attach branch IDs if selected from a real fetched branch
     if (branches.length > 0) {
       if (formData.origin_branch_id) {
         payload.origin_branch_id = parseInt(formData.origin_branch_id, 10)
@@ -180,103 +175,16 @@ export default function CreateParcel() {
         setPaymentSuccessData(null)
       }
     } catch (err) {
-      if (err.message === 'Network Error' || err.message.includes('fetch') || err.message.includes('network') || err.code === 'ERR_NETWORK') {
-        // Mock fallback for when backend is offline
-        const mockParcel = {
-          id: 'mock-' + Date.now(),
-          tracking_number: 'MOCK-' + Math.floor(1000 + Math.random() * 9000),
-          status: 'booked',
-          delivery_cost: calculatedCost,
-          receiver_name: payload.receiver_name,
-          delivery_city: payload.delivery_city,
-          payment_method: payload.payment_method,
-          category_name: categories.find(c => String(c.id) === String(payload.category_id))?.name || 'Package',
-          is_paid: false
-        }
-        const existingMocks = JSON.parse(localStorage.getItem('uthao_mock_parcels') || '[]')
-        localStorage.setItem('uthao_mock_parcels', JSON.stringify([mockParcel, ...existingMocks]))
-        setCreatedParcel(mockParcel)
-        if (payload.payment_method === 'prepaid') {
-          setShowPayModal(true)
-        } else {
-          setPaymentSuccessData(null)
-        }
-      } else {
-        setError(err.message || 'Failed to create parcel booking')
-      }
+      setError(err.message || 'Failed to create parcel booking')
     } finally {
       setSubmitting(false)
     }
   }
 
-  async function handlePaySubmit(e) {
-    e.preventDefault()
-    if (!createdParcel) return
-    setPayLoading(true)
-    setPayError('')
-    
-    const autoGenTxId = 'TRX-' + Date.now()
-
-    try {
-      await paymentApi.createPayment({
-        parcel_id: createdParcel.id,
-        payment_method_id: parseInt(payMethod, 10),
-        transaction_id: autoGenTxId,
-        notes: 'Customer payment from booking flow',
-      })
-      
-      // Save to local storage overrides since backend might not update is_paid properly
-      const paidIds = JSON.parse(localStorage.getItem('uthao_paid_parcel_ids') || '[]')
-      if (!paidIds.includes(createdParcel.id)) {
-        paidIds.push(createdParcel.id)
-        localStorage.setItem('uthao_paid_parcel_ids', JSON.stringify(paidIds))
-      }
-
-      const mockPayment = {
-        id: 'pay-' + Date.now(),
-        parcel_id: createdParcel.id,
-        amount: createdParcel.delivery_cost || calculatedCost,
-        status: 'completed',
-        payment_method: payMethod === '1' ? 'cash' : payMethod === '2' ? 'bkash' : 'card',
-        transaction_id: autoGenTxId,
-        created_at: new Date().toISOString()
-      }
-      const existingPayments = JSON.parse(localStorage.getItem('uthao_mock_payments') || '[]')
-      localStorage.setItem('uthao_mock_payments', JSON.stringify([mockPayment, ...existingPayments]))
-
-      setShowPayModal(false)
-      setPaymentSuccessData({ transaction_id: autoGenTxId })
-    } catch (err) {
-      const msg = String(err.message || '').toLowerCase()
-      if (msg.includes('network') || msg.includes('fetch') || err.code === 'ERR_NETWORK') {
-        // Mock fallback
-        const existingMocks = JSON.parse(localStorage.getItem('uthao_mock_parcels') || '[]')
-        const updatedMocks = existingMocks.map(p => 
-          p.id === createdParcel.id ? { ...p, is_paid: true } : p
-        )
-        localStorage.setItem('uthao_mock_parcels', JSON.stringify(updatedMocks))
-        
-        // Save mock payment to local storage so it shows in My Payments
-        const mockPayment = {
-          id: 'pay-' + Date.now(),
-          parcel_id: createdParcel.id,
-          amount: createdParcel.delivery_cost || calculatedCost,
-          status: 'completed',
-          payment_method: payMethod === '1' ? 'cash' : payMethod === '2' ? 'bkash' : 'card',
-          transaction_id: autoGenTxId,
-          created_at: new Date().toISOString()
-        }
-        const existingPayments = JSON.parse(localStorage.getItem('uthao_mock_payments') || '[]')
-        localStorage.setItem('uthao_mock_payments', JSON.stringify([mockPayment, ...existingPayments]))
-
-        setShowPayModal(false)
-        setPaymentSuccessData({ transaction_id: autoGenTxId })
-      } else {
-        setPayError(err.message || 'Failed to process payment')
-      }
-    } finally {
-      setPayLoading(false)
-    }
+  const handlePaymentSuccess = (result) => {
+    setPaymentSuccessData(result)
+    setCreatedParcel((prev) => ({ ...prev, is_paid: true }))
+    setShowPayModal(false)
   }
 
   if (loadingInitial) {
@@ -323,111 +231,63 @@ export default function CreateParcel() {
                   <span>Estimated Cost</span>
                   <span className="font-bold text-gray-900 text-base">৳{createdParcel.delivery_cost || calculatedCost}</span>
                 </div>
+                <div className="flex justify-between items-center text-xs text-gray-500">
+                  <span>Payment Status</span>
+                  <span className={`font-semibold px-2 py-0.5 rounded text-[11px] ${createdParcel.is_paid || paymentSuccessData ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {createdParcel.is_paid || paymentSuccessData ? 'Paid' : 'Unpaid (COD)'}
+                  </span>
+                </div>
                 {paymentSuccessData && (
-                  <div className="flex justify-between items-center text-xs text-green-600 pt-2 border-t border-gray-200 mt-2">
+                  <div className="flex justify-between items-center text-xs text-green-700 pt-2 border-t border-gray-200 mt-2">
                     <span>Transaction ID</span>
                     <span className="font-mono font-bold">{paymentSuccessData.transaction_id}</span>
                   </div>
                 )}
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    setCreatedParcel(null)
-                    setPaymentSuccessData(null)
-                  }}
-                  className="flex-1 py-3 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all"
-                >
-                  Book Another
-                </button>
-                <button
-                  onClick={() => navigate('/dashboard/my-parcels')}
-                  className="flex-1 py-3 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-900/10 transition-all flex items-center justify-center gap-1.5"
-                >
-                  My Parcels
-                  <ArrowRight size={16} />
-                </button>
+              <div className="flex flex-col gap-2 pt-2">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setCreatedParcel(null)
+                      setPaymentSuccessData(null)
+                    }}
+                    className="flex-1 py-3 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all"
+                  >
+                    Book Another
+                  </button>
+                  <button
+                    onClick={() => navigate('/dashboard/my-parcels')}
+                    className="flex-1 py-3 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-900/10 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    My Parcels
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+                {paymentSuccessData && (
+                  <button
+                    onClick={() => navigate('/dashboard/my-payments')}
+                    className="w-full py-2.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <ReceiptText size={15} />
+                    View Invoices & Billing
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* Pay Modal */}
-      <AnimatePresence>
-        {showPayModal && createdParcel && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 border border-gray-100 space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-green-600">
-                  <CreditCard size={22} />
-                  <h3 className="font-bold text-gray-900 text-lg">Pay for Shipment</h3>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowPayModal(false)
-                    setPaymentSuccessData(null)
-                  }}
-                  className="p-1 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 text-sm">
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-500">Tracking Number</span>
-                  <span className="font-mono font-bold text-gray-900">{createdParcel.tracking_number}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Amount Due</span>
-                  <span className="font-mono font-bold text-gray-900 text-base">৳{createdParcel.delivery_cost || calculatedCost}</span>
-                </div>
-              </div>
-
-              {payError && (
-                <div className="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-xl text-xs">
-                  {payError}
-                </div>
-              )}
-
-              <form onSubmit={handlePaySubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider">
-                    Payment Method
-                  </label>
-                  <select
-                    className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white"
-                    value={payMethod}
-                    onChange={(e) => setPayMethod(e.target.value)}
-                  >
-                    <option value="2">bKash / Mobile Money</option>
-                    <option value="3">Credit/Debit Card</option>
-                  </select>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <motion.button
-                    type="submit"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    disabled={payLoading}
-                    className="w-full px-4 py-3 text-sm font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition-all disabled:opacity-50"
-                  >
-                    {payLoading ? 'Processing Payment…' : 'Confirm Payment'}
-                  </motion.button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Demo Payment Modal */}
+      <PaymentModal
+        isOpen={showPayModal}
+        parcel={createdParcel}
+        onClose={() => {
+          setShowPayModal(false)
+        }}
+        onSuccess={handlePaymentSuccess}
+      />
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 columns: Form fields */}

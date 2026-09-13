@@ -1,8 +1,32 @@
--- =============================================================================
--- MODULE 10: Reporting Views & Stored Functions
--- Run this file ONCE against the live database to create all reporting objects.
--- All statements use CREATE OR REPLACE — safe to re-run.
--- =============================================================================
+
+
+CREATE OR REPLACE VIEW v_payment_summary AS
+SELECT
+    pay.id,
+    pay.parcel_id,
+    pay.customer_id,
+    pay.amount,
+    pay.transaction_id,
+    pay.status,
+    pay.paid_at,
+    pay.notes,
+    pay.created_at,
+    pay.updated_at,
+    p.tracking_number,
+    p.delivery_cost,
+    p.payment_method  AS parcel_payment_method,
+    p.is_paid         AS parcel_is_paid,
+    pm.name           AS payment_method_name,
+    pm.id             AS payment_method_id,
+    c.first_name      AS customer_first_name,
+    c.last_name       AS customer_last_name,
+    u.email           AS customer_email,
+    u.phone           AS customer_phone
+FROM payments pay
+JOIN parcels          p  ON p.id  = pay.parcel_id
+JOIN payment_methods  pm ON pm.id = pay.payment_method_id
+JOIN customers        c  ON c.id  = pay.customer_id
+JOIN users            u  ON u.id  = c.user_id;
 
 
 -- ─── VIEW: v_daily_deliveries ─────────────────────────────────────────────────
@@ -186,7 +210,6 @@ BEGIN
         END                                                                  AS success_rate_pct
     FROM delivery_agents da
     JOIN parcel_assignments pa ON pa.agent_id = da.id
-        AND pa.assignment_type = 'delivery'
         AND pa.assigned_at::DATE BETWEEN p_from AND p_to
     LEFT JOIN branches b ON b.id = da.branch_id
     WHERE da.is_active = true

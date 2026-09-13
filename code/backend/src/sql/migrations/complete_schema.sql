@@ -587,18 +587,7 @@ CREATE TRIGGER trg_payments_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
--- ─────────────────────────────────────────────────────────────────────────────
--- TRIGGER: When a payment is marked 'completed', automatically:
---   1. Set parcels.is_paid = true
---   2. Set payments.paid_at = NOW() (if not already set)
---   3. Auto-generate an invoice record (idempotent via ON CONFLICT DO NOTHING)
---
--- Why a trigger instead of application code?
---   The parcel paid-flag and invoice creation are side-effects of a payment
---   state change. Doing this in a trigger guarantees they happen even if a
---   payment is updated outside the API (e.g. admin SQL fix, future payment
---   gateway webhook). It also keeps the service layer simple.
--- ─────────────────────────────────────────────────────────────────────────────
+
 
 CREATE OR REPLACE FUNCTION fn_on_payment_completed()
 RETURNS TRIGGER AS $$
@@ -662,11 +651,6 @@ CREATE TRIGGER trg_payment_completed
     FOR EACH ROW EXECUTE FUNCTION fn_on_payment_completed();
 
 
--- ─────────────────────────────────────────────────────────────────────────────
--- FUNCTION: get_revenue_summary(p_from DATE, p_to DATE)
--- Returns total revenue, total payments, average payment for a date range.
--- Used by the revenue endpoint to avoid complex ad-hoc SQL in the application.
--- ─────────────────────────────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION get_revenue_summary(p_from DATE, p_to DATE)
 RETURNS TABLE (
@@ -692,11 +676,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ─────────────────────────────────────────────────────────────────────────────
--- VIEW: v_payment_summary
--- Joins payments with parcel, customer, payment_method for the list endpoints.
--- Avoids repeating the same JOIN block in every query.
--- ─────────────────────────────────────────────────────────────────────────────
+
 
 CREATE OR REPLACE VIEW v_payment_summary AS
 SELECT
@@ -726,29 +706,7 @@ JOIN payment_methods  pm ON pm.id = pay.payment_method_id
 JOIN customers        c  ON c.id  = pay.customer_id
 JOIN users            u  ON u.id  = c.user_id;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- MODULE 10: REPORTING VIEWS & STORED FUNCTIONS
---
--- Design principle: push heavy aggregation into the database so the API layer
--- stays thin. Views encapsulate complex JOINs; stored functions encapsulate
--- aggregations that need date-range parameters. The application calls them
--- with a single parameterized SELECT, keeping query plans stable and cacheable.
---
--- Index usage notes (EXPLAIN ANALYZE considerations):
---   • Daily deliveries   → idx_parcels_status_created  (status + created_at)
---   • Top agents         → idx_assignments_agent_status (agent_id + status)
---   • Most active branch → idx_parcels_origin_branch   (origin_branch_id)
---   • Revenue by branch  → idx_payments_paid_at        (paid_at)
---   • Delayed parcels    → idx_parcels_status           (status) + seq scan on
---                          estimated_delivery_date (no index needed — small
---                          result set, usually < 1% of table)
---   • Avg delivery time  → idx_status_history_status   (status)
--- ─────────────────────────────────────────────────────────────────────────────
 
-
--- ─── VIEW: v_daily_deliveries ─────────────────────────────────────────────────
--- Pre-joins delivered parcels with branch info for the daily delivery report.
--- The view is lightweight (no aggregation) so the caller adds date filters.
 
 CREATE OR REPLACE VIEW v_daily_deliveries AS
 SELECT
@@ -777,9 +735,7 @@ LEFT JOIN branches db  ON db.id = p.destination_branch_id
 JOIN parcel_categories cat ON cat.id = p.category_id;
 
 
--- ─── VIEW: v_delayed_parcels ──────────────────────────────────────────────────
--- Active parcels that have passed their estimated delivery date.
--- Refreshed on every query (regular view, not materialized) so data is live.
+
 
 CREATE OR REPLACE VIEW v_delayed_parcels AS
 SELECT
@@ -809,8 +765,6 @@ WHERE p.status NOT IN ('delivered', 'cancelled', 'returned', 'failed')
   AND p.estimated_delivery_date < CURRENT_DATE;
 
 
--- ─── VIEW: v_warehouse_occupancy ─────────────────────────────────────────────
--- Real-time occupancy snapshot for every active warehouse.
 
 CREATE OR REPLACE VIEW v_warehouse_occupancy AS
 SELECT
@@ -833,9 +787,6 @@ FROM warehouses w
 LEFT JOIN branches b ON b.id = w.branch_id;
 
 
--- ─── FUNCTION: fn_daily_delivery_summary(p_from DATE, p_to DATE) ─────────────
--- Returns per-day delivery counts + revenue for chart/dashboard use.
--- Uses idx_parcels_status_created composite index.
 
 CREATE OR REPLACE FUNCTION fn_daily_delivery_summary(p_from DATE, p_to DATE)
 RETURNS TABLE (
@@ -866,9 +817,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ─── FUNCTION: fn_monthly_revenue(p_from DATE, p_to DATE) ────────────────────
--- Aggregates completed payments by calendar month.
--- Uses idx_payments_paid_at index.
+
 
 CREATE OR REPLACE FUNCTION fn_monthly_revenue(p_from DATE, p_to DATE)
 RETURNS TABLE (
@@ -895,9 +844,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ─── FUNCTION: fn_top_delivery_agents(p_from DATE, p_to DATE, p_limit INT) ───
--- Ranks delivery agents by completed deliveries in the given period.
--- Uses idx_assignments_agent_status composite index.
 
 CREATE OR REPLACE FUNCTION fn_top_delivery_agents(
     p_from  DATE,
@@ -947,9 +893,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ─── FUNCTION: fn_most_active_branches(p_from DATE, p_to DATE, p_limit INT) ──
--- Ranks branches by total parcels originated in the given period.
--- Uses idx_parcels_origin_branch + idx_parcels_created_at indexes.
+
 
 CREATE OR REPLACE FUNCTION fn_most_active_branches(
     p_from  DATE,
@@ -996,9 +940,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ─── FUNCTION: fn_revenue_by_branch(p_from DATE, p_to DATE) ──────────────────
--- Revenue collected per branch (via origin_branch_id on the parcel).
--- Uses idx_payments_paid_at + idx_parcels_origin_branch.
 
 CREATE OR REPLACE FUNCTION fn_revenue_by_branch(p_from DATE, p_to DATE)
 RETURNS TABLE (
@@ -1038,9 +979,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ─── FUNCTION: fn_delivery_success_rate(p_from DATE, p_to DATE) ──────────────
--- Overall delivery success/failure breakdown. Also splits by priority and branch.
--- Uses idx_parcels_status_created composite index.
 
 CREATE OR REPLACE FUNCTION fn_delivery_success_rate(p_from DATE, p_to DATE)
 RETURNS TABLE (
@@ -1079,9 +1017,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ─── FUNCTION: fn_avg_delivery_time(p_from DATE, p_to DATE) ──────────────────
--- Calculates average time (hours) between first 'booked' and 'delivered'
--- status history entries. Uses idx_status_history_status index.
+
 
 CREATE OR REPLACE FUNCTION fn_avg_delivery_time(p_from DATE, p_to DATE)
 RETURNS TABLE (

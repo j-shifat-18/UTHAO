@@ -113,7 +113,24 @@ const getWarehouseOccupancy = async (id) => {
   return result.rows[0] || null;
 };
 
-// Increment occupancy inside a transaction (for parcel arrival)
+const updateOccupancy = async (id, current_occupancy) => {
+  const result = await query(
+    `UPDATE warehouses
+     SET current_occupancy = $1
+     WHERE id = $2
+       AND $1 >= 0
+       AND $1 <= total_capacity
+     RETURNING id, name, code, branch_id, total_capacity, current_occupancy,
+               (total_capacity - current_occupancy) AS available_space,
+               CASE WHEN total_capacity = 0 THEN 0
+                    ELSE ROUND(current_occupancy::NUMERIC / total_capacity * 100, 2)
+               END AS occupancy_pct`,
+    [current_occupancy, id]
+  );
+  return result.rows[0] || null;
+};
+
+
 const incrementOccupancy = async (client, warehouseId) => {
   const result = await client.query(
     `UPDATE warehouses
@@ -208,6 +225,6 @@ const completeTransfer = async (transferId) => {
 
 module.exports = {
   findAllWarehouses, findWarehouseById, createWarehouse, updateWarehouse,
-  deactivateWarehouse, getWarehouseOccupancy, incrementOccupancy,
+  deactivateWarehouse, getWarehouseOccupancy, updateOccupancy, incrementOccupancy,
   decrementOccupancy, initiateTransfer, completeTransfer,
 };

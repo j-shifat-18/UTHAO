@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../../api/client'
+import { useAuth } from '../../context/AuthContext.jsx'
 import { PageHeader, StatusBadge, EmptyState, Pagination } from '../../components/Bits.jsx'
-import { Plus, Edit2, X, Warehouse as WarehouseIcon, MapPin, Building, Package } from 'lucide-react'
+import { Plus, Edit2, X, Warehouse as WarehouseIcon, MapPin, Building, Package, BarChart2 } from 'lucide-react'
 
 const inputClass = 'w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white text-gray-800'
 const labelClass = 'block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider'
 
 export default function Warehouses() {
+  const { user } = useAuth()
+  const canUpdateOccupancy = user?.role === 'admin' || user?.role === 'manager'
   const [warehouses, setWarehouses] = useState([])
   const [branches, setBranches] = useState([])
   const [meta, setMeta] = useState({ page: 1, totalPages: 1 })
@@ -33,6 +36,56 @@ export default function Warehouses() {
   })
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // Occupancy update modal
+  const [occupancyTarget, setOccupancyTarget] = useState(null) // warehouse object
+  const [occupancyValue, setOccupancyValue] = useState('')
+  const [occupancyError, setOccupancyError] = useState('')
+  const [occupancySubmitting, setOccupancySubmitting] = useState(false)
+
+  function openOccupancyModal(wh) {
+    setOccupancyTarget(wh)
+    setOccupancyValue(String(wh.current_occupancy ?? 0))
+    setOccupancyError('')
+  }
+
+  function closeOccupancyModal() {
+    setOccupancyTarget(null)
+    setOccupancyError('')
+  }
+
+  async function handleOccupancySubmit(e) {
+    e.preventDefault()
+    setOccupancyError('')
+    const val = parseInt(occupancyValue, 10)
+    if (isNaN(val) || val < 0) {
+      setOccupancyError('Enter a valid non-negative number')
+      return
+    }
+    if (val > occupancyTarget.total_capacity) {
+      setOccupancyError(`Cannot exceed total capacity of ${occupancyTarget.total_capacity}`)
+      return
+    }
+    setOccupancySubmitting(true)
+    try {
+      const res = await api.patch(`/warehouses/${occupancyTarget.id}/occupancy`, {
+        current_occupancy: val,
+      })
+      const updated = res.data?.data
+      setWarehouses((list) =>
+        list.map((w) =>
+          w.id === occupancyTarget.id
+            ? { ...w, current_occupancy: updated?.current_occupancy ?? val }
+            : w
+        )
+      )
+      closeOccupancyModal()
+    } catch (err) {
+      setOccupancyError(err.message || 'Failed to update occupancy')
+    } finally {
+      setOccupancySubmitting(false)
+    }
+  }
 
   async function loadWarehouses(page = 1) {
     setLoading(true)
@@ -365,6 +418,17 @@ export default function Warehouses() {
                           <Edit2 size={12} />
                           Edit
                         </motion.button>
+                        {canUpdateOccupancy && (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => openOccupancyModal(w)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all"
+                          >
+                            <BarChart2 size={12} />
+                            Occupancy
+                          </motion.button>
+                        )}
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
@@ -533,6 +597,87 @@ export default function Warehouses() {
                     className="px-5 py-2 text-sm font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-md shadow-red-900/10 transition-all disabled:opacity-50"
                   >
                     {submitting ? 'Saving…' : editingWarehouse ? 'Update Warehouse' : 'Create Warehouse'}
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Occupancy Update Modal */}
+      <AnimatePresence>
+        {occupancyTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden border border-gray-100"
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center gap-2">
+                  <BarChart2 size={18} className="text-blue-600" />
+                  <h3 className="font-bold text-gray-900 text-lg">Update Occupancy</h3>
+                </div>
+                <button
+                  onClick={closeOccupancyModal}
+                  className="p-1 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-200/50 transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleOccupancySubmit} className="p-6 space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{occupancyTarget.name}</p>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">{occupancyTarget.code}</p>
+                </div>
+
+                <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex justify-between text-sm">
+                  <span className="text-gray-500">Total capacity</span>
+                  <span className="font-bold text-gray-900">{occupancyTarget.total_capacity}</span>
+                </div>
+
+                {occupancyError && (
+                  <div className="bg-red-50 text-red-600 border border-red-200 px-4 py-2.5 rounded-xl text-sm">
+                    {occupancyError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider">
+                    Current Occupancy *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={occupancyTarget.total_capacity}
+                    className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white text-gray-800"
+                    value={occupancyValue}
+                    onChange={(e) => setOccupancyValue(e.target.value)}
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Must be between 0 and {occupancyTarget.total_capacity}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={closeOccupancyModal}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <motion.button
+                    type="submit"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={occupancySubmitting}
+                    className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-md shadow-blue-900/10 transition-all disabled:opacity-50"
+                  >
+                    {occupancySubmitting ? 'Saving…' : 'Update Occupancy'}
                   </motion.button>
                 </div>
               </form>

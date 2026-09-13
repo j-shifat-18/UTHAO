@@ -73,16 +73,13 @@ function SidebarContent({ onNavClick }) {
           </nav>
         )}
 
-        {/* Delivery Module */}
-        {(isStaff || isAgent) && (
+        {/* Delivery Module — agents and non-admin staff only */}
+        {(isStaff || isAgent) && !isAdminLike && (
           <nav>
             <p className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold px-3 mb-2">Delivery Module</p>
             <div className="flex flex-col gap-1">
-              {(isStaff && !isAdminLike) && <NavItem to="/dashboard/delivery/book" icon={PlusCircle} onClick={onNavClick}>Book Delivery</NavItem>}
-              {isAgent && <NavItem to="/dashboard/delivery/agent" icon={Truck} onClick={onNavClick}>Rider Portal</NavItem>}
-              {isAdminLike && (
-                <NavItem to="/dashboard/delivery/manage" icon={Navigation} onClick={onNavClick}>Fleet Operations</NavItem>
-              )}
+              {isStaff && <NavItem to="/dashboard/delivery/book" icon={PlusCircle} onClick={onNavClick}>Book Delivery</NavItem>}
+              {isAgent && <NavItem to="/dashboard/delivery/agent" icon={Truck} onClick={onNavClick}>Assigned Deliveries</NavItem>}
             </div>
           </nav>
         )}

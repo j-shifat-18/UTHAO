@@ -1,13 +1,26 @@
 const { query } = require('../../database/query');
 const { withTransaction } = require('../../database/transaction');
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const ASSIGNMENT_SELECT = `
   pa.id, pa.parcel_id, pa.agent_id, pa.assignment_type, pa.status,
   pa.assigned_at, pa.completed_at, pa.notes, pa.assigned_by,
-  p.tracking_number, p.status AS parcel_status, p.receiver_name,
-  p.delivery_city, p.delivery_state, p.delivery_address_line1, p.priority,
+  p.tracking_number, p.status AS parcel_status,
+  p.receiver_name, p.receiver_name AS recipient_name,
+  p.receiver_phone, p.receiver_phone AS recipient_phone,
+  p.delivery_city, p.delivery_state,
+  p.delivery_address_line1, p.delivery_address_line1 AS delivery_address,
+  p.delivery_address_line2, p.delivery_postal_code,
+  p.weight_kg,
+  p.delivery_cost, p.delivery_cost AS total_cost,
+  p.payment_method, p.is_paid, p.is_fragile, p.priority,
+  p.delivery_instructions,
+  c.first_name AS sender_first_name, c.last_name AS sender_last_name,
+  TRIM(c.first_name || ' ' || COALESCE(c.last_name, '')) AS sender_name,
+  ub.email AS sender_email, ub.phone AS sender_phone,
+  COALESCE(addr.address_line1, ob.address, 'Customer Address on File') AS pickup_address,
+  COALESCE(addr.city, ob.city, 'Dhaka') AS pickup_city,
+  cat.name AS category_name,
   da.first_name AS agent_first_name, da.last_name AS agent_last_name,
   da.vehicle_type, da.current_zone, da.rating,
   u.email AS agent_email,
@@ -16,13 +29,17 @@ const ASSIGNMENT_SELECT = `
 
 const ASSIGNMENT_JOINS = `
   FROM parcel_assignments pa
-  JOIN parcels p   ON p.id   = pa.parcel_id
-  JOIN delivery_agents da ON da.id = pa.agent_id
-  JOIN users u     ON u.id   = da.user_id
-  LEFT JOIN users ab ON ab.id = pa.assigned_by
+  JOIN parcels p           ON p.id   = pa.parcel_id
+  JOIN customers c         ON c.id   = p.sender_customer_id
+  JOIN users ub            ON ub.id  = c.user_id
+  JOIN parcel_categories cat ON cat.id = p.category_id
+  LEFT JOIN addresses addr ON addr.id = p.pickup_address_id
+  LEFT JOIN branches ob    ON ob.id  = p.origin_branch_id
+  JOIN delivery_agents da  ON da.id  = pa.agent_id
+  JOIN users u             ON u.id   = da.user_id
+  LEFT JOIN users ab       ON ab.id  = pa.assigned_by
 `;
 
-// ─── Read ─────────────────────────────────────────────────────────────────────
 
 /**
  * List assignments with optional filters and pagination.
@@ -228,6 +245,24 @@ const createAssignment = async ({
       [parcel_id, agent_id, assignment_type, notes || null, assigned_by || null]
     );
 
+    if (assignment_type === 'delivery') {
+      await client.query(
+        `UPDATE parcels SET status = 'out_for_delivery', updated_at = NOW() WHERE id = $1`,
+        [parcel_id]
+      );
+      await client.query(
+        `INSERT INTO parcel_status_history (parcel_id, status, notes, changed_by)
+         VALUES ($1, 'out_for_delivery', 'Assigned to delivery agent and out for delivery', $2)`,
+        [parcel_id, assigned_by || null]
+      );
+    } else if (assignment_type === 'pickup') {
+      await client.query(
+        `INSERT INTO parcel_status_history (parcel_id, status, notes, changed_by)
+         VALUES ($1, 'booked', 'Assigned delivery agent for pickup', $2)`,
+        [parcel_id, assigned_by || null]
+      );
+    }
+
     return result.rows[0];
   });
 };
@@ -290,22 +325,51 @@ const reassignAgent = async ({
 /**
  * Mark an assignment as in_progress (agent has started the job).
  */
-const startAssignment = async (assignmentId, agentId) => {
-  const result = await query(
-    `UPDATE parcel_assignments
-     SET status = 'in_progress'
-     WHERE id = $1 AND agent_id = $2 AND status = 'assigned'
-     RETURNING *`,
-    [assignmentId, agentId]
-  );
-  return result.rows[0] || null;
+/**
+ * Mark an assignment as in_progress (agent has started the job).
+ * Updates parcel status to 'out_for_delivery' (or 'picked_up') and logs tracking history.
+ */
+const startAssignment = async (assignmentId, agentId, changed_by) => {
+  return withTransaction(async (client) => {
+    const result = await client.query(
+      `UPDATE parcel_assignments
+       SET status = 'in_progress'
+       WHERE id = $1 AND agent_id = $2 AND status = 'assigned'
+       RETURNING *`,
+      [assignmentId, agentId]
+    );
+    if (!result.rows[0]) return null;
+
+    const assignment = result.rows[0];
+    const targetStatus = assignment.assignment_type === 'pickup' ? 'picked_up' : 'out_for_delivery';
+
+    // Update parcel status
+    await client.query(
+      `UPDATE parcels SET status = $1, updated_at = NOW() WHERE id = $2`,
+      [targetStatus, assignment.parcel_id]
+    );
+
+    // Record status history
+    await client.query(
+      `INSERT INTO parcel_status_history (parcel_id, status, notes, changed_by)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        assignment.parcel_id,
+        targetStatus,
+        targetStatus === 'out_for_delivery' ? 'Out for delivery with rider' : 'Rider dispatched for pickup',
+        changed_by || null,
+      ]
+    );
+
+    return assignment;
+  });
 };
 
 /**
  * Complete an assignment: set completed_at, increment agent's total_deliveries,
- * and optionally update agent availability — all in one transaction.
+ * update parcel status to 'delivered' (or 'picked_up'), and log tracking history.
  */
-const completeAssignment = async ({ assignment_id, agent_id, notes }) => {
+const completeAssignment = async ({ assignment_id, agent_id, notes, completed_by }) => {
   return withTransaction(async (client) => {
     const result = await client.query(
       `UPDATE parcel_assignments
@@ -316,30 +380,71 @@ const completeAssignment = async ({ assignment_id, agent_id, notes }) => {
     );
     if (!result.rows[0]) return null;
 
+    const assignment = result.rows[0];
+
     // Increment total deliveries on agent profile
     await client.query(
       `UPDATE delivery_agents
-       SET total_deliveries = total_deliveries + 1
+       SET total_deliveries = total_deliveries + 1, updated_at = NOW()
        WHERE id = $1`,
       [agent_id]
     );
 
-    return result.rows[0];
+    // Update parcel status to 'delivered' (or 'picked_up')
+    const targetStatus = assignment.assignment_type === 'pickup' ? 'picked_up' : 'delivered';
+    await client.query(
+      `UPDATE parcels
+       SET status = $1,
+           actual_delivery_date = CASE WHEN $1 = 'delivered' THEN NOW() ELSE actual_delivery_date END,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [targetStatus, assignment.parcel_id]
+    );
+
+    // Record status history
+    await client.query(
+      `INSERT INTO parcel_status_history (parcel_id, status, notes, changed_by)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        assignment.parcel_id,
+        targetStatus,
+        notes || (targetStatus === 'delivered' ? 'Delivered successfully by delivery agent' : 'Picked up by delivery agent'),
+        completed_by || null,
+      ]
+    );
+
+    return assignment;
   });
 };
 
 /**
  * Mark an assignment as failed and optionally record notes.
  */
-const failAssignment = async ({ assignment_id, agent_id, notes }) => {
-  const result = await query(
-    `UPDATE parcel_assignments
-     SET status = 'failed', notes = COALESCE($1, notes)
-     WHERE id = $2 AND agent_id = $3 AND status IN ('assigned', 'in_progress')
-     RETURNING *`,
-    [notes || null, assignment_id, agent_id]
-  );
-  return result.rows[0] || null;
+const failAssignment = async ({ assignment_id, agent_id, notes, changed_by }) => {
+  return withTransaction(async (client) => {
+    const result = await client.query(
+      `UPDATE parcel_assignments
+       SET status = 'failed', notes = COALESCE($1, notes)
+       WHERE id = $2 AND agent_id = $3 AND status IN ('assigned', 'in_progress')
+       RETURNING *`,
+      [notes || null, assignment_id, agent_id]
+    );
+    if (!result.rows[0]) return null;
+
+    const assignment = result.rows[0];
+    await client.query(
+      `UPDATE parcels SET status = 'failed', updated_at = NOW() WHERE id = $1`,
+      [assignment.parcel_id]
+    );
+
+    await client.query(
+      `INSERT INTO parcel_status_history (parcel_id, status, notes, changed_by)
+       VALUES ($1, 'failed', $2, $3)`,
+      [assignment.parcel_id, notes || 'Delivery attempt failed', changed_by || null]
+    );
+
+    return assignment;
+  });
 };
 
 /**
@@ -353,6 +458,25 @@ const updateAssignmentNotes = async (assignmentId, notes) => {
   return result.rows[0] || null;
 };
 
+/**
+ * List all active delivery agents with branch and contact details.
+ */
+const findAllDeliveryAgents = async () => {
+  const result = await query(
+    `SELECT da.id, da.user_id, da.first_name, da.last_name, da.branch_id,
+            da.vehicle_type, da.vehicle_plate_number, da.license_number,
+            da.is_available, da.current_zone, da.max_parcels_per_day,
+            da.rating, da.total_deliveries, da.is_active,
+            u.email, u.phone, b.name as branch_name
+     FROM delivery_agents da
+     JOIN users u ON u.id = da.user_id
+     LEFT JOIN branches b ON b.id = da.branch_id
+     WHERE da.is_active = true
+     ORDER BY da.first_name ASC`
+  );
+  return result.rows;
+};
+
 module.exports = {
   findAllAssignments,
   findAssignmentById,
@@ -362,6 +486,7 @@ module.exports = {
   countAgentActiveAssignmentsToday,
   findDeliveryAgentByUserId,
   findDeliveryAgentById,
+  findAllDeliveryAgents,
   createAssignment,
   reassignAgent,
   startAssignment,

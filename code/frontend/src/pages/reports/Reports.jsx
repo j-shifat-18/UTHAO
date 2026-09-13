@@ -70,6 +70,17 @@ const getPresetRange = (preset) => {
   return { from: '', to: '' }
 }
 
+// Safely format any date value to YYYY-MM-DD
+// Handles both ISO timestamps (2026-09-12T00:00:00.000Z) and plain dates
+const formatDate = (val) => {
+  if (!val) return '—'
+  // Already a plain date string
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(val))) return val
+  // ISO timestamp — slice the date part
+  const s = String(val)
+  return s.slice(0, 10)
+}
+
 export default function Reports() {
   const { user, isAdminLike, isStaff } = useAuth()
 
@@ -110,9 +121,13 @@ export default function Reports() {
   const [occupancyCity, setOccupancyCity] = useState('')
   const [occupancyActiveOnly, setOccupancyActiveOnly] = useState(true)
 
-  // Load branches once
+  // Load branches once for filter dropdowns — errors are non-fatal
   useEffect(() => {
-    reportsApi.getBranches().then((list) => setBranches(list || []))
+    reportsApi.getBranches()
+      .then((list) => setBranches(list || []))
+      .catch(() => {
+        // Dropdowns stay empty; user can still use all other filters
+      })
   }, [])
 
   // Quick preset selector
@@ -206,7 +221,7 @@ export default function Reports() {
 
     if (activeTab === 'daily') {
       rows = (dailyData.rows || []).map((r) => ({
-        Date: r.day,
+        Date: formatDate(r.day),
         'Booked': r.total_booked,
         'Delivered': r.total_delivered,
         'In Transit': r.total_in_transit,
@@ -246,7 +261,7 @@ export default function Reports() {
       }))
     } else if (activeTab === 'revenue') {
       rows = (monthlyRevenueData.rows || []).map((r) => ({
-        'Month': r.month,
+        'Month': formatDate(r.month),
         'Total Revenue (BDT)': r.total_revenue,
         'Payments Count': r.total_payments,
         'Avg Payment (BDT)': r.avg_payment,
@@ -506,7 +521,7 @@ export default function Reports() {
                       return (
                         <tr key={idx} className="hover:bg-gray-50/70 transition-colors">
                           <td className="px-5 py-3.5 font-mono text-xs font-semibold text-gray-900">
-                            {row.day}
+                            {formatDate(row.day)}
                           </td>
                           <td className="px-5 py-3.5 text-gray-700 font-medium">{row.total_booked}</td>
                           <td className="px-5 py-3.5 text-green-700 font-semibold">{row.total_delivered}</td>
@@ -653,7 +668,7 @@ export default function Reports() {
                             </span>
                           </td>
                           <td className="px-5 py-3.5 text-xs font-mono text-gray-600">
-                            {parcel.estimated_delivery_date}
+                            {formatDate(parcel.estimated_delivery_date)}
                           </td>
                           <td className="px-5 py-3.5 text-xs text-gray-900 font-medium">
                             {parcel.delivery_city}
@@ -1018,7 +1033,7 @@ export default function Reports() {
                       <tbody className="divide-y divide-gray-100">
                         {monthlyRevenueData.rows.map((row, idx) => (
                           <tr key={idx} className="hover:bg-gray-50/70 transition-colors">
-                            <td className="px-5 py-3.5 font-mono text-xs font-bold text-gray-900">{row.month}</td>
+                            <td className="px-5 py-3.5 font-mono text-xs font-bold text-gray-900">{formatDate(row.month)}</td>
                             <td className="px-5 py-3.5 text-gray-700 font-medium">{row.total_payments}</td>
                             <td className="px-5 py-3.5 font-mono text-xs text-gray-600">
                               ৳{Number(row.avg_payment || 0).toFixed(2)}
@@ -1168,13 +1183,13 @@ export default function Reports() {
                             <td className="px-5 py-3.5 font-mono text-xs font-bold text-amber-600">
                               ★ {Number(agent.rating || 0).toFixed(2)}
                             </td>
-                            <td className="px-5 py-3.5 text-green-700 font-bold">{agent.completed_in_period}</td>
-                            <td className="px-5 py-3.5 text-red-500 font-medium">{agent.failed_in_period}</td>
+                            <td className="px-5 py-3.5 text-green-700 font-bold">{Number(agent.completed_in_period || 0)}</td>
+                            <td className="px-5 py-3.5 text-red-500 font-medium">{Number(agent.failed_in_period || 0)}</td>
                             <td className="px-5 py-3.5 font-mono text-xs font-bold text-gray-900">
-                              {agent.success_rate_pct}%
+                              {Number(agent.success_rate_pct || 0).toFixed(2)}%
                             </td>
                             <td className="px-5 py-3.5 text-right font-mono text-xs text-gray-500">
-                              {agent.total_deliveries_all}
+                              {Number(agent.total_deliveries_all || 0)}
                             </td>
                           </tr>
                         ))}

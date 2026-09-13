@@ -57,6 +57,13 @@ const createParcel = async (body, requestingUser) => {
     if (branchResult.rows[0]) originBranchName = branchResult.rows[0].name;
   }
 
+  // Calculate estimated delivery date: 5 days from today if not provided
+  const estimatedDeliveryDate = body.estimated_delivery_date || (() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 5)
+    return d.toISOString().slice(0, 10)
+  })()
+
   return parcelsRepo.createParcel({
     ...body,
     sender_customer_id: customer.id,
@@ -64,6 +71,7 @@ const createParcel = async (body, requestingUser) => {
     tracking_number: trackingNumber,
     origin_branch_name: originBranchName,
     created_by: requestingUser.id,
+    estimated_delivery_date: estimatedDeliveryDate,
   });
 };
 
@@ -90,9 +98,9 @@ const updateParcelStatus = async (id, body, requestingUser) => {
 
   const validTransitions = {
     booked: ['picked_up', 'cancelled'],
-    picked_up: ['in_transit', 'cancelled', 'failed'],
-    in_transit: ['at_warehouse', 'out_for_delivery', 'failed'],
+    picked_up: ['at_warehouse', 'in_transit', 'cancelled', 'failed'],
     at_warehouse: ['in_transit', 'out_for_delivery'],
+    in_transit: ['at_warehouse', 'out_for_delivery', 'failed'],
     out_for_delivery: ['delivered', 'failed', 'returned'],
     failed: ['out_for_delivery', 'returned'],
   };

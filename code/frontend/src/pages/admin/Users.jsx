@@ -65,6 +65,20 @@ export default function Users() {
     }
   }
 
+  async function changeRole(user, newRole) {
+    if (!newRole || newRole === user.role) return
+    setBusyId(user.id)
+    setError('')
+    try {
+      await api.patch(`/users/${user.id}`, { role: newRole })
+      setUsers((list) => list.map((u) => (u.id === user.id ? { ...u, role: newRole } : u)))
+    } catch (err) {
+      setError(err.message || 'Failed to update user role')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Administration" title="Users" sub="All accounts registered on the platform." />
@@ -79,6 +93,7 @@ export default function Users() {
         <select className={selectClass} value={role} onChange={(e) => setRole(e.target.value)}>
           <option value="">All roles</option>
           <option value="customer">Customer</option>
+          <option value="delivery_agent">Delivery Agent</option>
           <option value="manager">Manager</option>
           <option value="admin">Admin</option>
         </select>
@@ -110,8 +125,9 @@ export default function Users() {
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="text-left text-xs font-semibold uppercase tracking-wider text-gray-400 px-5 py-3">User</th>
                   <th className="text-left text-xs font-semibold uppercase tracking-wider text-gray-400 px-5 py-3">Role</th>
+                  <th className="text-left text-xs font-semibold uppercase tracking-wider text-gray-400 px-5 py-3">Change Role</th>
                   <th className="text-left text-xs font-semibold uppercase tracking-wider text-gray-400 px-5 py-3">Status</th>
-                  <th className="px-5 py-3" />
+                  <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -128,6 +144,19 @@ export default function Users() {
                       <TrackingTag id={u.id} label="USR" />
                     </td>
                     <td className="px-5 py-3.5"><RoleBadge role={u.role} /></td>
+                    <td className="px-5 py-3.5">
+                      <select
+                        disabled={busyId === u.id}
+                        value={u.role || 'customer'}
+                        onChange={(e) => changeRole(u, e.target.value)}
+                        className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg bg-white font-medium text-gray-700 hover:border-gray-900 focus:outline-none focus:ring-1 focus:ring-red-500 cursor-pointer disabled:opacity-50"
+                      >
+                        <option value="customer">Customer</option>
+                        <option value="delivery_agent">Delivery Agent</option>
+                        <option value="manager">Manager</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </td>
                     <td className="px-5 py-3.5"><StatusBadge active={u.is_active} /></td>
                     <td className="px-5 py-3.5 text-right">
                       <motion.button

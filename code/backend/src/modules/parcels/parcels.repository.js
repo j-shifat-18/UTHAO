@@ -49,6 +49,34 @@ const findAllParcels = async ({ limit, offset, status, priority, city, customer_
   return { rows: result.rows, totalCount };
 };
 
+const findAssignedAgentByParcelId = async (parcelId) => {
+  const result = await query(
+    `SELECT 
+       da.id,
+       da.first_name,
+       da.last_name,
+       da.vehicle_type,
+       da.vehicle_plate_number,
+       da.rating,
+       da.current_zone,
+       u.phone,
+       u.email,
+       pa.id as assignment_id,
+       pa.assignment_type,
+       pa.status as assignment_status,
+       pa.assigned_at,
+       pa.notes
+     FROM parcel_assignments pa
+     JOIN delivery_agents da ON da.id = pa.agent_id
+     JOIN users u ON u.id = da.user_id
+     WHERE pa.parcel_id = $1
+     ORDER BY pa.assigned_at DESC
+     LIMIT 1`,
+    [parcelId]
+  );
+  return result.rows[0] || null;
+};
+
 const findParcelById = async (id) => {
   const result = await query(
     `SELECT p.*,
@@ -68,23 +96,32 @@ const findParcelById = async (id) => {
      WHERE p.id = $1`,
     [id]
   );
-  return result.rows[0] || null;
+  const parcel = result.rows[0] || null;
+  if (!parcel) return null;
+
+  parcel.sender_name = `${parcel.sender_first_name || ''} ${parcel.sender_last_name || ''}`.trim() || 'Customer';
+  parcel.agent = await findAssignedAgentByParcelId(parcel.id);
+  return parcel;
 };
 
 const findParcelByTrackingNumber = async (trackingNumber) => {
   const result = await query(
     `SELECT p.id, p.tracking_number, p.receiver_name, p.receiver_phone,
-            p.delivery_address_line1, p.delivery_city, p.delivery_state,
+            p.delivery_address_line1, p.delivery_address_line2,
+            p.delivery_city, p.delivery_state, p.delivery_postal_code,
+            p.delivery_instructions,
             p.status, p.priority, p.weight_kg, p.delivery_cost,
             p.payment_method, p.is_paid, p.is_fragile,
             p.estimated_delivery_date, p.actual_delivery_date, p.created_at,
             c.first_name as sender_first_name, c.last_name as sender_last_name,
+            ub.phone as sender_phone, ub.email as sender_email,
             ob.name as origin_branch_name,
             db.name as destination_branch_name,
             w.name as current_warehouse_name,
             cat.name as category_name
      FROM parcels p
      JOIN customers c ON c.id = p.sender_customer_id
+     JOIN users ub ON ub.id = c.user_id
      LEFT JOIN branches ob ON ob.id = p.origin_branch_id
      LEFT JOIN branches db ON db.id = p.destination_branch_id
      LEFT JOIN warehouses w ON w.id = p.current_warehouse_id
@@ -92,7 +129,12 @@ const findParcelByTrackingNumber = async (trackingNumber) => {
      WHERE p.tracking_number = $1`,
     [trackingNumber]
   );
-  return result.rows[0] || null;
+  const parcel = result.rows[0] || null;
+  if (!parcel) return null;
+
+  parcel.sender_name = `${parcel.sender_first_name || ''} ${parcel.sender_last_name || ''}`.trim() || 'Customer';
+  parcel.agent = await findAssignedAgentByParcelId(parcel.id);
+  return parcel;
 };
 
 // Create parcel + first status history entry in a transaction

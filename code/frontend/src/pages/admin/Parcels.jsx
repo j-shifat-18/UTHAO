@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../../api/client'
 import { PageHeader, EmptyState, Pagination } from '../../components/Bits.jsx'
-import { Package, Truck, Clock, Edit3, X, ExternalLink, Filter, MapPin } from 'lucide-react'
+import { Package, Truck, Clock, Edit3, X, ExternalLink, Filter, MapPin, UserCheck, ShieldCheck } from 'lucide-react'
 
 const ALLOWED_TRANSITIONS = {
   booked: ['picked_up', 'cancelled'],
-  picked_up: ['in_transit', 'cancelled', 'failed'],
-  in_transit: ['at_warehouse', 'out_for_delivery', 'failed'],
+  picked_up: ['at_warehouse', 'in_transit', 'cancelled', 'failed'],
   at_warehouse: ['in_transit', 'out_for_delivery'],
+  in_transit: ['at_warehouse', 'out_for_delivery', 'failed'],
   out_for_delivery: ['delivered', 'failed', 'returned'],
   failed: ['out_for_delivery', 'returned'],
   delivered: [],
@@ -51,6 +51,14 @@ export default function AdminParcels() {
   const [agents, setAgents] = useState([])
   const [selectedAgent, setSelectedAgent] = useState('')
 
+  // Assign delivery agent modal state
+  const [assigningParcel, setAssigningParcel] = useState(null)
+  const [assignAgentId, setAssignAgentId] = useState('')
+  const [assignType, setAssignType] = useState('delivery')
+  const [assignNotes, setAssignNotes] = useState('')
+  const [assigning, setAssigning] = useState(false)
+  const [assignError, setAssignError] = useState('')
+
   // Tracking history modal state
   const [trackingParcel, setTrackingParcel] = useState(null)
   const [trackingHistory, setTrackingHistory] = useState([])
@@ -67,11 +75,23 @@ export default function AdminParcels() {
 
     try {
       try {
-        const { deliveryApi } = await import('../../api/deliveryApi.js')
-        const agList = await deliveryApi.getAgents()
-        setAgents(agList)
-      } catch (e) {
-        // ignore agent fetch error if any
+        const agRes = await api.get('/deliveries/agents')
+        const agList = agRes.data?.data || []
+        if (agList.length > 0) {
+          setAgents(agList)
+        } else {
+          const { deliveryApi } = await import('../../api/deliveryApi.js')
+          const agMock = await deliveryApi.getAgents()
+          setAgents(agMock)
+        }
+      } catch {
+        try {
+          const { deliveryApi } = await import('../../api/deliveryApi.js')
+          const agMock = await deliveryApi.getAgents()
+          setAgents(agMock)
+        } catch {
+          // ignore
+        }
       }
 
       const res = await api.get(`/parcels?${params.toString()}`)
@@ -85,7 +105,6 @@ export default function AdminParcels() {
         try {
           const { deliveryApi } = await import('../../api/deliveryApi.js')
           let mockData = await deliveryApi.getParcels()
-          // apply local filtering
           if (search) {
              const s = search.toLowerCase()
              mockData = mockData.filter(p => p.tracking_number?.toLowerCase().includes(s) || p.receiver_name?.toLowerCase().includes(s) || p.receiver_phone?.includes(s))
@@ -98,7 +117,7 @@ export default function AdminParcels() {
           }
           setParcels(mockData)
           setMeta({ page: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false })
-        } catch (e) {
+        } catch {
           setError('Failed to load mock parcels')
         }
       } else {
@@ -120,11 +139,56 @@ export default function AdminParcels() {
 
   function openUpdateStatusModal(parcel) {
     setUpdatingParcel(parcel)
-    const allowed = ALLOWED_TRANSITIONS[parcel.status] || []
+    const allowed = Array.from(new Set(ALLOWED_TRANSITIONS[parcel.status] || []))
     setNewStatus(allowed.length > 0 ? allowed[0] : '')
     setLocation(parcel.delivery_city || '')
     setNotes('')
     setModalError('')
+  }
+
+  function openAssignModal(parcel) {
+    setAssigningParcel(parcel)
+    setAssignAgentId(agents[0]?.id || '')
+    setAssignType(parcel.status === 'booked' ? 'pickup' : 'delivery')
+    setAssignNotes('')
+    setAssignError('')
+  }
+
+  async function handleAssignSubmit(e) {
+    e.preventDefault()
+    if (!assigningParcel || !assignAgentId) {
+      setAssignError('Please select a delivery agent')
+      return
+    }
+
+    setAssigning(true)
+    setAssignError('')
+
+    try {
+      try {
+        await api.post('/deliveries', {
+          parcel_id: assigningParcel.id,
+          agent_id: assignAgentId,
+          assignment_type: assignType,
+          notes: assignNotes.trim() || undefined,
+        })
+      } catch {
+        const { deliveryApi } = await import('../../api/deliveryApi.js')
+        await deliveryApi.assignParcelToAgent(
+          assigningParcel.id,
+          assignAgentId,
+          assignType,
+          assignNotes.trim()
+        )
+      }
+
+      setAssigningParcel(null)
+      loadParcels(meta.page)
+    } catch (err) {
+      setAssignError(err.message || 'Failed to assign parcel to agent')
+    } finally {
+      setAssigning(false)
+    }
   }
 
   async function handleStatusUpdateSubmit(e) {
@@ -153,10 +217,20 @@ export default function AdminParcels() {
           location: location.trim() || undefined,
           notes: notes.trim() || undefined,
         })
-      } catch (backendErr) {
-        // Fallback to deliveryApi
+        if (selectedAgent && (newStatus === 'out_for_delivery' || newStatus === 'picked_up')) {
+          try {
+            await api.post('/deliveries', {
+              parcel_id: updatingParcel.id,
+              agent_id: selectedAgent,
+              assignment_type: newStatus === 'out_for_delivery' ? 'delivery' : 'pickup',
+              notes: notes.trim() || undefined,
+            })
+          } catch (assignErr) {
+            console.warn('Assignment warning:', assignErr)
+          }
+        }
+      } catch {
         const { deliveryApi } = await import('../../api/deliveryApi.js')
-        
         if (newStatus === 'out_for_delivery' || newStatus === 'picked_up') {
            await deliveryApi.assignParcelToAgent(updatingParcel.id, selectedAgent, newStatus === 'out_for_delivery' ? 'delivery' : 'pickup', notes.trim())
         } else {
@@ -321,6 +395,17 @@ export default function AdminParcels() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right space-x-2">
+                        {!['delivered', 'cancelled', 'returned'].includes(p.status) && (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => openAssignModal(p)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all"
+                          >
+                            <UserCheck size={12} />
+                            Assign Agent
+                          </motion.button>
+                        )}
                         {canUpdateStatus && (
                           <motion.button
                             whileHover={{ scale: 1.05 }}
@@ -548,6 +633,105 @@ export default function AdminParcels() {
                   </div>
                 )}
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Assign Delivery Agent Modal */}
+      <AnimatePresence>
+        {assigningParcel && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100"
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center gap-2">
+                  <UserCheck size={20} className="text-red-600" />
+                  <h3 className="font-bold text-gray-900 text-base">Assign Delivery Agent</h3>
+                </div>
+                <button
+                  onClick={() => setAssigningParcel(null)}
+                  className="p-1 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-200/50 transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAssignSubmit} className="p-6 space-y-4">
+                {assignError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium">
+                    {assignError}
+                  </div>
+                )}
+
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs text-gray-600 space-y-1">
+                  <p><span className="font-semibold text-gray-800">Tracking:</span> {assigningParcel.tracking_number}</p>
+                  <p><span className="font-semibold text-gray-800">Recipient:</span> {assigningParcel.recipient_name} ({assigningParcel.recipient_city})</p>
+                  <p><span className="font-semibold text-gray-800">Current Status:</span> <span className="capitalize">{assigningParcel.status?.replace('_', ' ')}</span></p>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Select Delivery Agent *</label>
+                  <select
+                    className={inputClass}
+                    value={assignAgentId}
+                    onChange={(e) => setAssignAgentId(e.target.value)}
+                    required
+                  >
+                    <option value="">-- Choose an active agent --</option>
+                    {agents.map((ag) => (
+                      <option key={ag.id} value={ag.id}>
+                        {ag.first_name} {ag.last_name} {ag.phone ? `(${ag.phone})` : ''} - {ag.vehicle_type || 'Agent'} ({ag.current_zone || 'All Zones'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Assignment Stage *</label>
+                  <select
+                    className={inputClass}
+                    value={assignType}
+                    onChange={(e) => setAssignType(e.target.value)}
+                  >
+                    <option value="pickup">Pickup (Collect from sender)</option>
+                    <option value="delivery">Delivery (Final drop-off to recipient)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Dispatch Instructions / Notes</label>
+                  <textarea
+                    rows={2}
+                    className={inputClass}
+                    placeholder="Instructions for the delivery agent (e.g. Call before arrival)…"
+                    value={assignNotes}
+                    onChange={(e) => setAssignNotes(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setAssigningParcel(null)}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <motion.button
+                    type="submit"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={assigning}
+                    className="px-5 py-2 text-sm font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-md shadow-red-900/10 transition-all disabled:opacity-50"
+                  >
+                    {assigning ? 'Assigning…' : 'Confirm Assignment'}
+                  </motion.button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
