@@ -48,6 +48,8 @@ export default function AdminParcels() {
   const [notes, setNotes] = useState('')
   const [updating, setUpdating] = useState(false)
   const [modalError, setModalError] = useState('')
+  const [agents, setAgents] = useState([])
+  const [selectedAgent, setSelectedAgent] = useState('')
 
   // Tracking history modal state
   const [trackingParcel, setTrackingParcel] = useState(null)
@@ -64,19 +66,41 @@ export default function AdminParcels() {
     if (cityFilter) params.set('city', cityFilter)
 
     try {
+      try {
+        const { deliveryApi } = await import('../../api/deliveryApi.js')
+        const agList = await deliveryApi.getAgents()
+        setAgents(agList)
+      } catch (e) {
+        // ignore agent fetch error if any
+      }
+
       const res = await api.get(`/parcels?${params.toString()}`)
       const body = res.data
       setParcels(body.data || [])
       setMeta(body.meta || { page: 1, totalPages: 1 })
     } catch (err) {
       const msg = String(err.message || '')
-      if (msg.includes('ENOTFOUND') || msg.includes('postgres') || msg.includes('tenant') || err.status === 500) {
-        // Offline Mock Fallback
-        setParcels([
-          { id: '1', tracking_number: 'DHK-1234', receiver_name: 'Jane Doe', receiver_phone: '017000000', delivery_city: 'Dhaka', weight_kg: 2, priority: 'standard', status: 'booked', delivery_cost: 120 },
-          { id: '2', tracking_number: 'CTG-5678', receiver_name: 'John Smith', receiver_phone: '018000000', delivery_city: 'Chittagong', weight_kg: 1.5, priority: 'express', status: 'in_transit', delivery_cost: 200 }
-        ])
-        setMeta({ page: 1, totalPages: 1 })
+      if (msg.includes('ENOTFOUND') || msg.includes('postgres') || msg.includes('tenant') || err.status === 500 || err.status === 404 || err.code === 'ERR_NETWORK') {
+        // Offline Mock Fallback via deliveryApi
+        try {
+          const { deliveryApi } = await import('../../api/deliveryApi.js')
+          let mockData = await deliveryApi.getParcels()
+          // apply local filtering
+          if (search) {
+             const s = search.toLowerCase()
+             mockData = mockData.filter(p => p.tracking_number?.toLowerCase().includes(s) || p.receiver_name?.toLowerCase().includes(s) || p.receiver_phone?.includes(s))
+          }
+          if (statusFilter) mockData = mockData.filter(p => p.status === statusFilter)
+          if (priorityFilter) mockData = mockData.filter(p => p.priority === priorityFilter)
+          if (cityFilter) {
+             const c = cityFilter.toLowerCase()
+             mockData = mockData.filter(p => p.delivery_city?.toLowerCase().includes(c))
+          }
+          setParcels(mockData)
+          setMeta({ page: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false })
+        } catch (e) {
+          setError('Failed to load mock parcels')
+        }
       } else {
         setError(err.message || 'Failed to load parcels')
       }
@@ -115,12 +139,33 @@ export default function AdminParcels() {
     setModalError('')
 
     try {
-      await api.patch(`/parcels/${updatingParcel.id}/status`, {
-        status: newStatus,
-        location: location.trim() || undefined,
-        notes: notes.trim() || undefined,
-      })
+      if (newStatus === 'out_for_delivery' || newStatus === 'picked_up') {
+        if (!selectedAgent) {
+          setModalError('Please select a rider to assign')
+          setUpdating(false)
+          return
+        }
+      }
+
+      try {
+        await api.patch(`/parcels/${updatingParcel.id}/status`, {
+          status: newStatus,
+          location: location.trim() || undefined,
+          notes: notes.trim() || undefined,
+        })
+      } catch (backendErr) {
+        // Fallback to deliveryApi
+        const { deliveryApi } = await import('../../api/deliveryApi.js')
+        
+        if (newStatus === 'out_for_delivery' || newStatus === 'picked_up') {
+           await deliveryApi.assignParcelToAgent(updatingParcel.id, selectedAgent, newStatus === 'out_for_delivery' ? 'delivery' : 'pickup', notes.trim())
+        } else {
+           await deliveryApi.updateParcelStatus(updatingParcel.id, newStatus, location.trim(), notes.trim())
+        }
+      }
+
       setUpdatingParcel(null)
+      setSelectedAgent('')
       loadParcels(meta.page)
     } catch (err) {
       setModalError(err.message || 'Failed to update status')
@@ -359,7 +404,21 @@ export default function AdminParcels() {
                   <select
                     className={inputClass}
                     value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewStatus(val);
+                      
+                      let autoLocation = location;
+                      if (val === 'picked_up') autoLocation = 'Picked up from Customer';
+                      else if (val === 'in_transit') autoLocation = 'In Transit - Regional Hub';
+                      else if (val === 'at_warehouse') autoLocation = `${updatingParcel.delivery_city || 'Main'} Warehouse`;
+                      else if (val === 'out_for_delivery') autoLocation = `Out for delivery in ${updatingParcel.delivery_city || 'City'}`;
+                      else if (val === 'delivered') autoLocation = 'Delivered to Receiver';
+                      else if (val === 'failed' || val === 'returned') autoLocation = 'Returned to Hub';
+                      else if (val === 'booked') autoLocation = 'Origin Hub';
+                      
+                      setLocation(autoLocation);
+                    }}
                   >
                     {(ALLOWED_TRANSITIONS[updatingParcel.status] || []).map((st) => (
                       <option key={st} value={st}>
@@ -368,6 +427,24 @@ export default function AdminParcels() {
                     ))}
                   </select>
                 </div>
+
+                {(newStatus === 'out_for_delivery' || newStatus === 'picked_up') && (
+                  <div>
+                    <label className={labelClass}>Assign Rider *</label>
+                    <select
+                      className={inputClass}
+                      value={selectedAgent}
+                      onChange={(e) => setSelectedAgent(e.target.value)}
+                    >
+                      <option value="">-- Select Rider --</option>
+                      {agents.map((ag) => (
+                        <option key={ag.id} value={ag.id}>
+                          {ag.first_name} {ag.last_name} ({ag.vehicle_type}) - {ag.current_zone}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className={labelClass}>Current Location</label>

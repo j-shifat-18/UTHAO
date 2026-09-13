@@ -301,17 +301,53 @@ export const deliveryApi = {
     return newAgent
   },
 
-  // --- Parcels & Tracking ---
   getParcels: async () => {
-    return getStorage(STORAGE_KEYS.PARCELS, INITIAL_PARCELS)
+    const parcels = getStorage(STORAGE_KEYS.PARCELS, INITIAL_PARCELS)
+    const assignments = getStorage(STORAGE_KEYS.ASSIGNMENTS, INITIAL_ASSIGNMENTS)
+    const agents = getStorage(STORAGE_KEYS.AGENTS, INITIAL_AGENTS)
+    
+    // Merge dynamically from customer bookings (uthao_mock_parcels)
+    const customerParcels = getStorage('uthao_mock_parcels', [])
+    const allParcels = [...parcels]
+    
+    customerParcels.forEach(cp => {
+      if (!allParcels.find(p => p.id === cp.id || p.tracking_number === cp.tracking_number)) {
+        allParcels.push({
+          ...cp,
+          status: cp.status || 'booked',
+          delivery_city: cp.delivery_city || 'Unknown City',
+        })
+      }
+    })
+
+    return allParcels.map((p) => {
+      const activeAssignment = assignments.find(
+        (a) => a.parcel_id === p.id && a.status === 'in_progress'
+      )
+      if (activeAssignment) {
+        p.agent = agents.find((ag) => ag.id === activeAssignment.agent_id)
+      } else {
+        p.agent = null
+      }
+      return p
+    }).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
   },
 
   getParcelByTracking: async (trackingNumber) => {
     const parcels = getStorage(STORAGE_KEYS.PARCELS, INITIAL_PARCELS)
     const cleaned = trackingNumber.trim().toUpperCase()
-    const parcel = parcels.find(
+    let parcel = parcels.find(
       (p) => p.tracking_number.toUpperCase() === cleaned || p.id === cleaned
     )
+    
+    // Check mock parcels if not found
+    if (!parcel) {
+      const mockParcels = getStorage('uthao_mock_parcels', [])
+      parcel = mockParcels.find(
+        (p) => p.tracking_number.toUpperCase() === cleaned || p.id === cleaned
+      )
+    }
+
     if (!parcel) return null
 
     // Attach history & assignment details
@@ -396,6 +432,21 @@ export const deliveryApi = {
       }
       return p
     })
+    
+    // Also update customer mock store if it exists there
+    const mockParcels = getStorage('uthao_mock_parcels', [])
+    const updatedMockParcels = mockParcels.map((p) => {
+      if (p.id === parcelId) {
+        return {
+          ...p,
+          status: newStatus,
+          actual_delivery_date: newStatus === 'delivered' ? now : p.actual_delivery_date,
+          updated_at: now,
+        }
+      }
+      return p
+    })
+    setStorage('uthao_mock_parcels', updatedMockParcels)
 
     // If delivered, update agent stats & assignment completion
     let updatedAssignments = [...assignments]
@@ -459,9 +510,19 @@ export const deliveryApi = {
 
   assignParcelToAgent: async (parcelId, agentId, type = 'delivery', notes = '') => {
     const assignments = getStorage(STORAGE_KEYS.ASSIGNMENTS, INITIAL_ASSIGNMENTS)
-    const parcels = getStorage(STORAGE_KEYS.PARCELS, INITIAL_PARCELS)
+    let parcels = getStorage(STORAGE_KEYS.PARCELS, INITIAL_PARCELS)
 
-    const parcel = parcels.find((p) => p.id === parcelId)
+    let parcel = parcels.find((p) => p.id === parcelId)
+    
+    // If not in main store, check mock store and import it
+    if (!parcel) {
+      const mockParcels = getStorage('uthao_mock_parcels', [])
+      parcel = mockParcels.find((p) => p.id === parcelId)
+      if (parcel) {
+        parcels.push(parcel)
+      }
+    }
+
     if (!parcel) throw new Error('Parcel not found')
 
     const newAssignment = {
@@ -479,6 +540,13 @@ export const deliveryApi = {
     const updatedParcels = parcels.map((p) =>
       p.id === parcelId ? { ...p, status: newStatus, updated_at: new Date().toISOString() } : p
     )
+    
+    // Also update customer mock store if it exists there
+    const mockParcels = getStorage('uthao_mock_parcels', [])
+    const updatedMockParcels = mockParcels.map((p) =>
+      p.id === parcelId ? { ...p, status: newStatus, updated_at: new Date().toISOString() } : p
+    )
+    setStorage('uthao_mock_parcels', updatedMockParcels)
 
     assignments.push(newAssignment)
     setStorage(STORAGE_KEYS.ASSIGNMENTS, assignments)

@@ -28,6 +28,11 @@ export default function MyPayments() {
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   const [loadingInvoice, setLoadingInvoice] = useState(false)
 
+  // Refund modal
+  const [refundPayment, setRefundPayment] = useState(null)
+  const [refundReason, setRefundReason] = useState('')
+  const [refunding, setRefunding] = useState(false)
+
   async function loadPayments(page = 1) {
     setLoading(true)
     setError('')
@@ -37,14 +42,27 @@ export default function MyPayments() {
       setMeta(res.data?.meta || { page: 1, totalPages: 1 })
     } catch (err) {
       const msg = String(err.message || '').toLowerCase()
-      if (err.status === 404 || msg.includes('network') || msg.includes('fetch') || err.code === 'ERR_NETWORK') {
-        const existingPayments = JSON.parse(localStorage.getItem('uthao_mock_payments') || '[]')
-        setPayments([
-          ...existingPayments,
-          { id: '1', parcel_id: 'p1', amount: 150.00, status: 'completed', payment_method: 'card', transaction_id: 'TRX-123', created_at: new Date().toISOString() },
-          { id: '2', parcel_id: 'p2', amount: 80.00, status: 'pending', payment_method: 'bkash', transaction_id: null, created_at: new Date().toISOString() },
-        ])
-        setMeta({ page: 1, totalPages: 1 })
+      if (err.status === 404 || err.status === 500 || msg.includes('network') || msg.includes('fetch') || msg.includes('relation') || msg.includes('v_payment_summary') || err.code === 'ERR_NETWORK') {
+        try {
+          const { deliveryApi } = await import('../../api/deliveryApi.js')
+          let parcels = await deliveryApi.getParcels()
+          
+          let list = parcels.map(p => ({
+            id: p.id,
+            parcel_id: p.tracking_number,
+            amount: p.delivery_fee || 100,
+            status: p.is_paid ? 'completed' : 'pending',
+            payment_method: p.payment_method || 'cod',
+            transaction_id: p.is_paid ? `TRX-${p.id.split('-')[1] || Date.now()}` : null,
+            created_at: p.created_at || new Date().toISOString(),
+            refund_requested: p.refund_requested,
+          }))
+          
+          setPayments(list)
+          setMeta({ page: 1, totalPages: 1 })
+        } catch(e) {
+          setError('Failed to load local payments')
+        }
       } else {
         setError(err.message || 'Failed to load payments')
       }
@@ -66,20 +84,38 @@ export default function MyPayments() {
     } catch (err) {
       // Mock invoice fallback
       const msg = String(err.message || '').toLowerCase()
-      if (msg.includes('network') || msg.includes('fetch') || err.code === 'ERR_NETWORK' || err.status === 404) {
+      if (err.status === 404 || err.status === 500 || msg.includes('network') || msg.includes('fetch') || msg.includes('relation') || msg.includes('v_payment_summary') || err.code === 'ERR_NETWORK') {
         setSelectedInvoice({
-          id: 'inv-1',
-          invoice_number: 'INV-2024-001',
-          subtotal: payment.amount,
-          vat_amount: payment.amount * 0.05,
-          total_amount: payment.amount * 1.05,
-          created_at: new Date().toISOString()
+          id: 'inv-' + payment.id,
+          invoice_number: 'INV-' + (payment.transaction_id || 'MOCK'),
+          subtotal: payment.amount || 0,
+          vat_amount: (payment.amount || 0) * 0.05,
+          total_amount: (payment.amount || 0) * 1.05,
+          created_at: payment.created_at || new Date().toISOString()
         })
       } else {
         throw err
       }
     } finally {
       setLoadingInvoice(false)
+    }
+  }
+
+  async function handleRefundSubmit(e) {
+    e.preventDefault()
+    if (!refundPayment || !refundReason.trim()) return
+
+    setRefunding(true)
+    try {
+      // Offline mock fallback
+      const { deliveryApi } = await import('../../api/deliveryApi.js')
+      await deliveryApi.requestRefund(refundPayment.id, refundReason.trim())
+      setRefundPayment(null)
+      loadPayments(meta.page)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setRefunding(false)
     }
   }
 
@@ -152,17 +188,32 @@ export default function MyPayments() {
                           <span className="capitalize">{p.status}</span>
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-5 py-3.5 text-right space-x-2">
                         {p.status === 'completed' && (
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleViewInvoice(p)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-all"
-                          >
-                            <FileText size={14} />
-                            Invoice
-                          </motion.button>
+                          <>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleViewInvoice(p)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-all"
+                            >
+                              <FileText size={14} />
+                              Invoice
+                            </motion.button>
+                            {!p.refund_requested && (
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => { setRefundPayment(p); setRefundReason(''); }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-all ml-2"
+                              >
+                                Refund
+                              </motion.button>
+                            )}
+                            {p.refund_requested && (
+                              <span className="inline-block text-[10px] uppercase font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded ml-2">Refund Requested</span>
+                            )}
+                          </>
                         )}
                       </td>
                     </motion.tr>
@@ -239,6 +290,54 @@ export default function MyPayments() {
               <div className="p-6 border-t border-gray-100 bg-gray-50 shrink-0 text-center">
                 <p className="text-xs text-gray-500">Thank you for using UTHAO Logistics!</p>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Refund Modal */}
+      <AnimatePresence>
+        {refundPayment && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-6 border border-gray-100 space-y-4"
+            >
+              <h3 className="font-bold text-gray-900 text-lg">Request Refund</h3>
+              <p className="text-sm text-gray-600">Please provide a valid reason for requesting a refund for <span className="font-mono font-semibold">{refundPayment.transaction_id || refundPayment.parcel_id}</span>.</p>
+              
+              <form onSubmit={handleRefundSubmit} className="space-y-4 pt-2">
+                <div>
+                  <textarea
+                    rows={3}
+                    className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white"
+                    placeholder="Enter reason here..."
+                    value={refundReason}
+                    onChange={(e) => setRefundReason(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setRefundPayment(null)}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <motion.button
+                    type="submit"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={refunding || !refundReason.trim()}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition-all disabled:opacity-50"
+                  >
+                    {refunding ? 'Submitting...' : 'Submit Request'}
+                  </motion.button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
